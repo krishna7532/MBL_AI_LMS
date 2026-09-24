@@ -1,0 +1,15 @@
+<%- include('../layouts/header') %>
+<div class="auth-card">
+  <div class="apply-success">
+    <span class="auth-state-icon state-pending" aria-hidden="true"><%- icon('clock', 48) %></span>
+    <h1 class="auth-title">Application received</h1>
+    <p class="auth-subtitle">Your application is waiting for admin approval. You can't open any course content until it is approved.</p>
+  </div>
+  <ol class="auth-steps">
+    <li>An admin reviews your application.</li>
+    <li>If approved, your 14-day trial starts immediately.</li>
+    <li>You get an email with the exact start and expiry time in IST.</li>
+  </ol>
+  <a class="btn btn-secondary btn-block" href="/login">Back to sign-in</a>
+</div>
+<%- include('../layouts/footer') %>

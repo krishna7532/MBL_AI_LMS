@@ -1,0 +1,42 @@
+<%- include('../layouts/header') %>
+<div class="admin-header page-header">
+  <div>
+    <h1 class="page-title">Revision notes</h1>
+    <p class="page-subtitle">Notes and assessments are approved separately before a release can be published.</p>
+  </div>
+</div>
+
+<div class="admin-filters">
+  <div class="admin-search">
+    <%- icon('search', 16) %>
+    <label class="visually-hidden" for="contentSearch">Search notes</label>
+    <input class="form-control table-search" id="contentSearch" type="search" placeholder="Search by course, title or status" data-table="#contentTable">
+  </div>
+</div>
+
+<div class="admin-table">
+  <div class="table-responsive">
+    <table class="table" id="contentTable">
+      <caption class="visually-hidden">Revision notes</caption>
+      <thead><tr><th scope="col">Note</th><th scope="col">Course</th><th scope="col">Week</th><th scope="col">Version</th><th scope="col">Source</th><th scope="col">Approval</th><th scope="col">Updated</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+      <tbody>
+        <% items.forEach(function (c) { %>
+        <tr>
+          <td><strong><%= c.title %></strong><br><span class="text-secondary text-small"><%= c.topic %></span></td>
+          <td><%= c.courseName %></td>
+          <td><%= c.weekNumber %></td>
+          <td>v<%= c.version %></td>
+          <td><%= fmt.label(c.source) %></td>
+          <td><span class="badge <%= fmt.approvalClass(c.approvalStatus) %>"><%= fmt.label(c.approvalStatus) %></span></td>
+          <td class="text-small"><%= fmt.dateTime(c.lastUpdated) %></td>
+          <td class="admin-table-actions">
+            <button type="button" class="btn btn-sm btn-secondary" data-preview-action="Note preview opens in Stage 2.">Preview</button>
+            <% if (c.approvalStatus !== 'approved') { %><button type="button" class="btn btn-sm btn-primary" data-preview-action="Approval is recorded in Stage 2. Nothing was changed.">Approve notes</button><% } %>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../layouts/footer') %>

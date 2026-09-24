@@ -1,0 +1,56 @@
+<%
+  const learnerNav = [
+    { title: null, items: [
+      { href: '/dashboard',   label: 'Dashboard',        icon: 'home',     match: ['/dashboard', '/weekly'] },
+      { href: '/monthly',     label: 'Monthly Revision', icon: 'calendar', match: ['/monthly'] },
+      { href: '/leaderboard', label: 'Leaderboard',      icon: 'trophy',   match: ['/leaderboard'] },
+      { href: '/profile',     label: 'Account',          icon: 'user',     match: ['/profile'] },
+    ]},
+    { title: 'Reference', items: [
+      { href: '/courses', label: 'Courses', icon: 'book',  match: ['/courses'] },
+      { href: '/results', label: 'Results', icon: 'chart', match: ['/results'] },
+    ]},
+  ];
+  const adminNav = [
+    { title: null, items: [
+      { href: '/admin',             label: 'Overview',           icon: 'home',     exact: true },
+      { href: '/admin/users',       label: 'Users & approvals',  icon: 'users' },
+    ]},
+    { title: 'Content', items: [
+      { href: '/admin/content',     label: 'Revision notes',     icon: 'file' },
+      { href: '/admin/assessments', label: 'Assessments',        icon: 'pen' },
+      { href: '/admin/releases',    label: 'Releases',           icon: 'layers' },
+    ]},
+    { title: 'Operations', items: [
+      { href: '/admin/audit-logs',  label: 'Audit log',          icon: 'list' },
+      { href: '/admin/settings',    label: 'Settings',           icon: 'settings' },
+    ]},
+  ];
+  const groups = isAdminArea ? adminNav : learnerNav;
+  function isActive(item) {
+    if (item.exact) return currentPath === item.href;
+    const list = item.match || [item.href];
+    return list.some(function (m) { return currentPath === m || currentPath.indexOf(m + '/') === 0; });
+  }
+%>
+<nav class="sidebar" aria-label="<%= isAdminArea ? 'Admin' : 'Learner' %> navigation">
+  <% groups.forEach(function (group) { %>
+  <div class="sidebar-section">
+    <% if (group.title) { %><p class="sidebar-section-title"><%= group.title %></p><% } %>
+    <div class="sidebar-nav">
+      <% group.items.forEach(function (item) { %>
+        <a class="sidebar-link<%= isActive(item) ? ' active' : '' %>" href="<%= item.href %>"<%- isActive(item) ? ' aria-current="page"' : '' %>>
+          <%- icon(item.icon) %><span><%= item.label %></span>
+        </a>
+      <% }) %>
+    </div>
+  </div>
+  <% }) %>
+  <% if (!isAdminArea && user.trial && user.trial.isActive) { %>
+  <div class="sidebar-trial">
+    <p class="sidebar-trial-title">Trial</p>
+    <p><%= user.trial.daysRemaining %> days left · ends <%= fmt.date(user.trial.endDate) %></p>
+    <a href="/profile#plans">See plans</a>
+  </div>
+  <% } %>
+</nav>

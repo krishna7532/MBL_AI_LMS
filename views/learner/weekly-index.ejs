@@ -1,0 +1,36 @@
+<%- include('../layouts/header') %>
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Weekly revision sprints</h1>
+    <p class="page-subtitle"><%= constants.REVISION_ONLY %>. Five independent 30-minute sprints each teaching week, one per course.</p>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h2 class="section-title">How a sprint works</h2>
+    <div class="table-responsive">
+      <table class="table">
+        <caption class="visually-hidden">Sprint structure and scoring</caption>
+        <thead><tr><th scope="col">Part</th><th scope="col">Time</th><th scope="col">What you do</th><th scope="col">Marks</th></tr></thead>
+        <tbody>
+          <tr><td>Revision notes</td><td>15 min</td><td>Read approved notes tied to the concepts taught</td><td>—</td></tr>
+          <tr><td>MCQ practice</td><td>10 min</td><td>15 questions. Correct +2, wrong 0, unanswered 0. No negative marking.</td><td>30</td></tr>
+          <tr><td>Subjective outline</td><td>5 min</td><td>One 10-mark question</td><td>10</td></tr>
+          <tr><th scope="row">Total</th><td>30 min</td><td>Reviewing feedback is outside the 30 minutes.</td><th>40</th></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-secondary text-small mt-2">The weekday on each sprint is a suggestion. You can do the sprints in any order.</p>
+  </div>
+</div>
+
+<% weeks.forEach(function (week) { %>
+  <h2 class="section-title">Week <%= week.number %><% if (week.state === 'current') { %> <span class="badge badge-primary">Current week</span><% } %></h2>
+  <div class="mb-4">
+    <% week.sprints.forEach(function (s) { %>
+      <%- include('../partials/sprint-card', { s: s, sprintHref: sprintHref }) %>
+    <% }) %>
+  </div>
+<% }) %>
+<%- include('../layouts/footer') %>

@@ -1,0 +1,18 @@
+<%
+  const st = fmt.sprintState(s.status);
+  const href = sprintHref(s);
+  const primary = s.status === 'not_started' || s.status === 'notes_completed' || s.status === 'test_in_progress';
+%>
+<div class="sprint-card" data-href="<%= href %>">
+  <div class="sprint-weekday"><%= s.weekday.slice(0, 3) %></div>
+  <div class="sprint-info">
+    <h3 class="sprint-course"><%= s.courseName %></h3>
+    <p><%= s.title %></p>
+    <p class="sprint-structure">15 min notes, 10 min MCQs, 5 min subjective outline</p>
+  </div>
+  <span class="sprint-status <%= st.css %>"><%= st.label %></span>
+  <% if (s.bestScore !== null && s.bestScore !== undefined) { %>
+    <span class="sprint-score" title="Best score"><%= s.bestScore %>/<%= s.maxScore %></span>
+  <% } %>
+  <a class="btn btn-sm <%= primary ? 'btn-primary' : 'btn-secondary' %>" href="<%= href %>" aria-label="<%= st.action %>: <%= s.courseName %>, week <%= s.weekNumber %>"><%= st.action %></a>
+</div>

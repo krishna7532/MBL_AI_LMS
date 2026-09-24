@@ -1,0 +1,61 @@
+<%- include('../layouts/header') %>
+<div class="admin-header page-header">
+  <div>
+    <h1 class="page-title">Users & approvals</h1>
+    <p class="page-subtitle">Approve, reject or suspend learners and check their access.</p>
+  </div>
+  <div class="page-actions"><button type="button" class="btn btn-secondary" disabled title="Available in Stage 2">Export user list (Stage 2)</button></div>
+</div>
+
+<section aria-labelledby="queueHeading" class="mb-4">
+  <h2 id="queueHeading" class="section-title">Applications waiting (<%= data.pending.length %>)</h2>
+  <% if (data.pending.length) { %>
+    <% data.pending.forEach(function (u) { %><%- include('../partials/approval-card', { u: u }) %><% }) %>
+  <% } else { %>
+    <div class="empty-state card"><p class="empty-state-title">No applications waiting</p></div>
+  <% } %>
+</section>
+
+<section aria-labelledby="allUsersHeading">
+  <h2 id="allUsersHeading" class="section-title">All users</h2>
+  <div class="admin-filters">
+    <div class="admin-search">
+      <%- icon('search', 16) %>
+      <label class="visually-hidden" for="userSearch">Search users</label>
+      <input class="form-control table-search" id="userSearch" type="search" placeholder="Search by name, email or state" data-table="#usersTable">
+    </div>
+  </div>
+  <div class="admin-table">
+    <div class="table-responsive">
+      <table class="table" id="usersTable">
+        <caption class="visually-hidden">All users</caption>
+        <thead><tr><th scope="col">User</th><th scope="col">Phone</th><th scope="col">State</th><th scope="col">Access</th><th scope="col">Leaderboard</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+        <tbody>
+          <% data.users.forEach(function (u) { const st = fmt.accountState(u.accountState); %>
+          <tr>
+            <td><strong><%= u.name %></strong><br><span class="text-secondary text-small"><%= u.email %></span></td>
+            <td><%= u.phone %></td>
+            <td><span class="badge <%= st.css %>"><%= st.label %></span></td>
+            <td class="text-small">
+              <% if (u.subscription) { %><%= fmt.label(u.subscription.plan) %> plan until <%= fmt.date(u.subscription.endDate) %>
+              <% } else if (u.trial) { %>Trial <%= fmt.date(u.trial.startDate) %> to <%= fmt.date(u.trial.endDate) %>
+              <% } else { %>None<% } %>
+            </td>
+            <td class="text-small"><%= u.leaderboardOptIn ? u.leaderboardAlias : '—' %></td>
+            <td>
+              <% if (u.accountState === 'pending_approval') { %>
+                <button type="button" class="btn btn-sm btn-primary btn-approve" data-user-id="<%= u._id %>" data-user-name="<%= u.name %>">Approve</button>
+              <% } else { %>
+                <button type="button" class="btn btn-sm btn-secondary" data-preview-action="Suspending a user is recorded in Stage 2. Nothing was changed.">Suspend</button>
+              <% } %>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<%- include('../partials/approval-modals') %>
+<%- include('../layouts/footer') %>

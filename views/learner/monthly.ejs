@@ -1,0 +1,43 @@
+<%- include('../layouts/header') %>
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Monthly Revision</h1>
+    <p class="page-subtitle">One separate three-hour simulation per course. Do them independently, on different days.</p>
+  </div>
+</div>
+
+<div class="alert alert-info" role="note"><span><%= constants.SIMULATION_PATTERN_NOTICE %></span></div>
+
+<div class="courses-grid">
+  <% sims.forEach(function (sim) { %>
+  <article class="card sim-card">
+    <div class="card-body">
+      <span class="course-code"><%= sim.courseId %></span>
+      <h2 class="course-title"><%= sim.courseName %></h2>
+      <p class="text-secondary text-small">Weeks 5 to 8 · <%= sim.duration %> minutes · <%= sim.totalMarks %> marks</p>
+      <dl class="sim-structure">
+        <div><dt>Part A</dt><dd>5 passages × 5 MCQs = 50</dd></div>
+        <div><dt>Part B</dt><dd>3 scenario questions = 30</dd></div>
+        <div><dt>Part C</dt><dd>2 doctrinal questions = 20</dd></div>
+      </dl>
+      <% if (sim.bestScore !== null) { %><p class="sim-best">Best score: <strong><%= sim.bestScore %>/<%= sim.totalMarks %></strong> after <%= sim.attempts %> attempt<%= sim.attempts === 1 ? '' : 's' %></p><% } %>
+    </div>
+    <div class="card-footer flex-between">
+      <% if (sim.status === 'available') { %>
+        <span class="badge badge-success">Available</span>
+        <a class="btn btn-primary btn-sm" href="/monthly/<%= sim._id %>">Read instructions</a>
+      <% } else if (sim.status === 'completed') { %>
+        <span class="badge badge-info">Completed</span>
+        <span class="flex gap-2">
+          <a class="btn btn-secondary btn-sm" href="/results/attempt_m02_c02">Review</a>
+          <a class="btn btn-ghost btn-sm" href="/monthly/<%= sim._id %>">Retake</a>
+        </span>
+      <% } else { %>
+        <span class="badge badge-muted">Not released yet</span>
+        <span class="text-secondary text-small">Appears after admin publishes it</span>
+      <% } %>
+    </div>
+  </article>
+  <% }) %>
+</div>
+<%- include('../layouts/footer') %>

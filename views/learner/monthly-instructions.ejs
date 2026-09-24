@@ -1,0 +1,64 @@
+<%- include('../layouts/header') %>
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="/monthly">Monthly Revision</a><span aria-hidden="true">/</span><span aria-current="page"><%= sim.courseName %></span>
+</nav>
+
+<div class="simulation-instructions">
+  <h1 class="page-title"><%= sim.title %></h1>
+  <p class="text-secondary mb-3"><%= sim.duration %> minutes · <%= sim.totalMarks %> marks · every question is compulsory</p>
+
+  <div class="table-responsive mb-3">
+    <table class="table">
+      <caption class="visually-hidden">Simulation structure</caption>
+      <thead><tr><th scope="col">Section</th><th scope="col">Composition</th><th scope="col">Marks</th></tr></thead>
+      <tbody>
+        <tr><td>Part A</td><td>5 shared passages, 5 linked MCQs each, 2 marks per MCQ</td><td>50</td></tr>
+        <tr><td>Part B</td><td>3 scenario or application questions, 10 marks each</td><td>30</td></tr>
+        <tr><td>Part C</td><td>2 doctrinal or critical questions, 10 marks each</td><td>20</td></tr>
+        <tr><th scope="row">Total</th><td>30 compulsory response items</td><th>100</th></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="section-title">Instructions</h2>
+  <ul class="instruction-list">
+    <li>Enter question and sub-part numbers correctly.</li>
+    <li>Write briefly and logically.</li>
+    <li>Cite relevant case law.</li>
+    <li>Clearly state any additional factual assumptions.</li>
+    <li>All questions in this simulation are compulsory.</li>
+    <li>MCQs score +2 for a correct answer. Wrong or unanswered MCQs score 0. There is no negative marking.</li>
+    <li>Your answers save automatically.</li>
+  </ul>
+
+  <div class="exam-warning" role="note">
+    <span aria-hidden="true"><%- icon('clock', 22) %></span>
+    <div>
+      <strong>The three-hour timer can't be paused.</strong>
+      It keeps running if you leave the page or lose your connection. When time runs out, your saved answers are submitted automatically.
+    </div>
+  </div>
+
+  <p class="text-secondary text-small mb-3"><%= constants.SIMULATION_PATTERN_NOTICE %></p>
+
+  <% if (hasPlayer) { %>
+  <form method="get" action="/monthly/<%= sim._id %>/attempt" class="sim-start-form">
+    <div class="form-check mb-3">
+      <input class="form-check-input" type="checkbox" id="confirmTimer" required>
+      <label class="form-check-label" for="confirmTimer">I understand the timer runs for 180 continuous minutes and can't be paused.</label>
+    </div>
+    <button type="submit" class="btn btn-primary btn-lg" id="startSimBtn" disabled>Start simulation</button>
+  </form>
+
+  <div class="stage-note">
+    <p><strong>Stage 1 preview.</strong> The timer here is a display only and is remembered in this browser. The server-controlled timer, autosave and auto-submit arrive in Stage 2. To see time expire quickly, open the attempt with <code>?demoMinutes=1</code> on the end of the URL.</p>
+    <button type="button" class="btn btn-ghost btn-sm" data-reset-preview>Reset preview attempt on this device</button>
+  </div>
+  <% } else { %>
+  <div class="alert alert-warning">
+    <span><% if (sim.status === 'not_released') { %>This simulation hasn't been released yet.<% } else { %>Stage 1 has playable mock content for the Contract Law simulation only.<% } %></span>
+    <a class="btn btn-sm btn-secondary" href="/monthly/sim_m02_C01">Open Contract Law simulation</a>
+  </div>
+  <% } %>
+</div>
+<%- include('../layouts/footer') %>

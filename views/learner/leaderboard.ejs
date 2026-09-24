@@ -1,0 +1,154 @@
+<%- include('../layouts/header') %>
+<%
+  const wk = lb.weekly;
+  const cu = lb.cumulative;
+  const p = lb.participation;
+%>
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Leaderboard</h1>
+    <p class="page-subtitle">Rankings show anonymous handles only. Your name, email, answers and feedback are never shown.</p>
+  </div>
+</div>
+
+<section class="card mb-4" aria-labelledby="participationHeading">
+  <div class="card-body participation">
+    <% if (p.optIn) { %>
+      <div>
+        <h2 id="participationHeading" class="section-title">You're taking part as <strong><%= p.alias %></strong></h2>
+        <p class="text-secondary text-small">Withdrawing removes you from the public rankings. Your private attempt history stays.</p>
+      </div>
+      <button type="button" class="btn btn-secondary" data-modal-open="withdrawModal">Withdraw from leaderboards</button>
+    <% } else { %>
+      <div class="participation-form">
+        <h2 id="participationHeading" class="section-title">Join the leaderboards (optional)</h2>
+        <p class="text-secondary text-small mb-3">Pick an anonymous handle. Others will see the handle and your scores, nothing else.</p>
+        <form class="join-form" data-preview-form="Joining the leaderboard is saved in Stage 2.">
+          <div class="form-group">
+            <label class="form-label" for="handle">Handle</label>
+            <input class="form-control" id="handle" name="handle" type="text" minlength="3" maxlength="24" autocomplete="off" required aria-describedby="handleHelp">
+            <span class="form-text" id="handleHelp">3 to 24 characters. Must be unique.</span>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="lbConsent" name="consent" required>
+            <label class="form-check-label" for="lbConsent">I agree to show this handle and my scores on the leaderboards.</label>
+          </div>
+          <button type="submit" class="btn btn-primary">Join leaderboard</button>
+        </form>
+      </div>
+    <% } %>
+  </div>
+</section>
+
+<div class="tabs leaderboard-tabs" role="tablist" aria-label="Leaderboard type">
+  <button type="button" class="tab-link leaderboard-tab<%= lb.tab === 'weekly' ? ' active' : '' %>" role="tab" id="lbtab-weekly" data-target="panel-weekly" aria-selected="<%= lb.tab === 'weekly' %>" aria-controls="panel-weekly">Weekly</button>
+  <button type="button" class="tab-link leaderboard-tab<%= lb.tab === 'cumulative' ? ' active' : '' %>" role="tab" id="lbtab-cumulative" data-target="panel-cumulative" aria-selected="<%= lb.tab === 'cumulative' %>" aria-controls="panel-cumulative">Cumulative</button>
+</div>
+
+<!-- WEEKLY -->
+<section class="leaderboard-panel<%= lb.tab === 'weekly' ? ' active' : '' %>" id="panel-weekly" role="tabpanel" aria-labelledby="lbtab-weekly">
+  <form class="admin-filters lb-filters" method="get" action="/leaderboard" data-autosubmit>
+    <input type="hidden" name="tab" value="weekly">
+    <div class="form-group">
+      <label class="form-label" for="scope">Show</label>
+      <select class="form-control" id="scope" name="scope">
+        <option value="course"<%= wk.scope === 'course' ? ' selected' : '' %>>This course</option>
+        <option value="all"<%= wk.scope === 'all' ? ' selected' : '' %>>All five courses</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="courseFilter">Course</label>
+      <select class="form-control" id="courseFilter" name="course"<%= wk.scope === 'all' ? ' disabled' : '' %>>
+        <% lb.courses.forEach(function (c) { %><option value="<%= c.id %>"<%= wk.courseId === c.id ? ' selected' : '' %>><%= c.name %></option><% }) %>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="weekFilter">Week</label>
+      <select class="form-control" id="weekFilter" name="week">
+        <% wk.weeks.forEach(function (n) { %><option value="<%= n %>"<%= wk.week === n ? ' selected' : '' %>>Week <%= n %></option><% }) %>
+      </select>
+    </div>
+    <noscript><button class="btn btn-secondary" type="submit">Apply</button></noscript>
+  </form>
+
+  <p class="text-secondary text-small mb-2">
+    <% if (wk.scope === 'course') { %>Best single-attempt score in <%= wk.courseName %>, out of 40.<% } else { %>Total of your counted scores across five sprints, out of 200. A sprint you haven't attempted counts as 0.<% } %>
+  </p>
+
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table leaderboard-table">
+        <caption class="visually-hidden">Weekly leaderboard: top three handles and your own rank</caption>
+        <thead><tr><th scope="col">Rank</th><th scope="col">Handle</th><th scope="col">Score</th></tr></thead>
+        <tbody>
+          <% wk.top.forEach(function (r) { %>
+          <tr class="<%= r.isMe ? 'leaderboard-current-user' : '' %>">
+            <td class="rank-cell"><%= r.rank %></td><td class="alias-cell"><%= r.alias %></td><td><%= r.score %>/<%= wk.max %></td>
+          </tr>
+          <% }) %>
+          <% if (p.optIn && wk.me && wk.meOutsideTop) { %>
+          <tr class="lb-you-divider"><td colspan="3">Your rank</td></tr>
+          <tr class="leaderboard-current-user"><td class="rank-cell"><%= wk.me.rank %></td><td class="alias-cell"><%= wk.me.alias %></td><td><%= wk.me.score %>/<%= wk.max %></td></tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer text-small">
+      <% if (!p.optIn) { %><strong>Not participating.</strong> Join above to appear in the rankings and see your rank.
+      <% } else if (!wk.me) { %>You haven't completed this sprint for week <%= wk.week %> yet, so you have no rank here.
+      <% } else if (!wk.meOutsideTop) { %>You're in the top three.
+      <% } else { %>Your rank: <strong><%= wk.me.rank %></strong>.<% } %>
+    </div>
+  </div>
+</section>
+
+<!-- CUMULATIVE -->
+<section class="leaderboard-panel<%= lb.tab === 'cumulative' ? ' active' : '' %>" id="panel-cumulative" role="tabpanel" aria-labelledby="lbtab-cumulative">
+  <form class="admin-filters lb-filters" method="get" action="/leaderboard" data-autosubmit>
+    <input type="hidden" name="tab" value="cumulative">
+    <div class="form-group">
+      <label class="form-label" for="attemptToggle">Count</label>
+      <select class="form-control" id="attemptToggle" name="attempt">
+        <option value="best"<%= cu.attempt === 'best' ? ' selected' : '' %>>Best of all attempts</option>
+        <option value="first"<%= cu.attempt === 'first' ? ' selected' : '' %>>First attempt only</option>
+      </select>
+    </div>
+    <noscript><button class="btn btn-secondary" type="submit">Apply</button></noscript>
+  </form>
+
+  <p class="text-secondary text-small mb-2">Weekly scores (out of 40 each) plus monthly scores (out of 100 each) for academic year AY-2026. Equal totals share a rank. Retakes never change first-attempt totals.</p>
+
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table leaderboard-table">
+        <caption class="visually-hidden">Cumulative leaderboard</caption>
+        <thead><tr><th scope="col">Rank</th><th scope="col">Handle</th><th scope="col">Weekly</th><th scope="col">Monthly</th><th scope="col">Total</th></tr></thead>
+        <tbody>
+          <% cu.rows.forEach(function (r) { %>
+          <tr class="<%= r.isMe && p.optIn ? 'leaderboard-current-user' : '' %>">
+            <td class="rank-cell"><%= r.rank %></td><td class="alias-cell"><%= r.alias %></td><td><%= r.weeklyTotal %></td><td><%= r.monthlyTotal %></td><td><strong><%= r.total %></strong></td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer flex-between text-small">
+      <span><%= p.optIn && cu.me ? 'Your rank: ' + cu.me.rank : 'Not participating.' %></span>
+      <button type="button" class="btn btn-sm btn-secondary" disabled title="Available in Stage 2">Copy public link (Stage 2)</button>
+    </div>
+  </div>
+  <p class="text-secondary text-small mt-2">The public link will show handles and scores only, and search engines are told not to index it.</p>
+</section>
+
+<div class="modal" id="withdrawModal" role="dialog" aria-modal="true" aria-labelledby="withdrawTitle">
+  <div class="modal-overlay"></div>
+  <div class="modal-content">
+    <div class="modal-header"><h2 id="withdrawTitle" class="modal-title">Withdraw from leaderboards?</h2></div>
+    <div class="modal-body"><p>Your handle disappears from the rankings. You can still view the boards, and your private attempts are kept.</p></div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+      <button type="button" class="btn btn-danger" data-preview-action="Withdrawing is saved in Stage 2.">Withdraw</button>
+    </div>
+  </div>
+</div>
+<%- include('../layouts/footer') %>

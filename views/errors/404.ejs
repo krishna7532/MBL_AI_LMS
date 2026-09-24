@@ -1,0 +1,8 @@
+<%- include('../layouts/header') %>
+<div class="empty-state">
+  <div class="empty-state-icon" aria-hidden="true"><%- icon('search', 40) %></div>
+  <h1 class="empty-state-title">Page not found</h1>
+  <p class="empty-state-text">We couldn't find <code><%= path %></code>. It may have moved, or the link may be wrong.</p>
+  <a class="btn btn-primary" href="<%= isAdminArea ? '/admin' : '/dashboard' %>">Go to <%= isAdminArea ? 'admin overview' : 'dashboard' %></a>
+</div>
+<%- include('../layouts/footer') %>

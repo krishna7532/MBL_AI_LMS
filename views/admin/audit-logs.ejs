@@ -1,0 +1,37 @@
+<%- include('../layouts/header') %>
+<div class="admin-header page-header">
+  <div>
+    <h1 class="page-title">Audit log</h1>
+    <p class="page-subtitle">Who did what, and when. Stage 1 shows sample events.</p>
+  </div>
+</div>
+
+<div class="admin-filters">
+  <div class="admin-search">
+    <%- icon('search', 16) %>
+    <label class="visually-hidden" for="auditSearch">Search audit log</label>
+    <input class="form-control table-search" id="auditSearch" type="search" placeholder="Search by actor, action or target" data-table="#auditTable">
+  </div>
+</div>
+
+<div class="admin-table">
+  <div class="table-responsive">
+    <table class="table" id="auditTable">
+      <caption class="visually-hidden">Audit events</caption>
+      <thead><tr><th scope="col">When</th><th scope="col">Actor</th><th scope="col">Action</th><th scope="col">Target</th><th scope="col">Details</th><th scope="col">Result</th></tr></thead>
+      <tbody>
+        <% logs.forEach(function (a) { %>
+        <tr class="audit-log-row">
+          <td><%= fmt.dateTime(a.timestamp) %></td>
+          <td><%= a.actor %><br><span class="text-secondary text-small"><%= a.actorRole %></span></td>
+          <td><span class="audit-action <%= fmt.auditClass(a.action) %>"><%= a.action %></span></td>
+          <td><span class="audit-entity"><%= a.entityId %></span><br><span class="text-small"><%= a.entityName %></span></td>
+          <td class="text-small"><%= a.details %></td>
+          <td><span class="badge <%= a.result === 'success' ? 'badge-success' : 'badge-danger' %>"><%= fmt.label(a.result) %></span></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../layouts/footer') %>

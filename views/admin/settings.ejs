@@ -1,0 +1,89 @@
+<%- include('../layouts/header') %>
+<%
+  const wk = settings.blueprint.weekly;
+  const mo = settings.blueprint.monthly;
+%>
+<div class="admin-header page-header">
+  <div>
+    <h1 class="page-title">Settings</h1>
+    <p class="page-subtitle">Exam-pattern rules and assessment blueprints. Changes create a new version. Completed attempts keep the version they used.</p>
+  </div>
+</div>
+
+<section class="settings-section" aria-labelledby="rulesHeading">
+  <div class="settings-section-header" id="rulesHeading">Exam-pattern rules</div>
+  <div class="table-responsive">
+    <table class="table">
+      <caption class="visually-hidden">Exam-pattern rule records</caption>
+      <thead><tr><th scope="col">Rule</th><th scope="col">Value</th><th scope="col">Source</th><th scope="col">Cohort</th><th scope="col">Confidence</th><th scope="col">Last verified</th></tr></thead>
+      <tbody>
+        <% settings.patternRules.forEach(function (r) { %>
+        <tr>
+          <td><span class="audit-entity"><%= r.key %></span><%= r.isCurrent ? '' : ' (superseded)' %></td>
+          <td><%= r.value %></td>
+          <td class="text-small"><%= r.sourceLabel %></td>
+          <td><%= r.cohort %></td>
+          <td><span class="badge <%= fmt.confidenceClass(r.confidence) %>"><%= fmt.label(r.confidence) %></span></td>
+          <td><%= r.verifiedAt ? fmt.date(r.verifiedAt) : 'Never' %></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <div class="settings-section-body">
+    <p class="text-secondary text-small">Don't state as fact anything marked Unverified or Product default. The simulation format is a product configuration and can differ from the official pattern.</p>
+  </div>
+</section>
+
+<form id="adminSettingsForm" novalidate>
+  <section class="settings-section" aria-labelledby="blueprintHeading">
+    <div class="settings-section-header" id="blueprintHeading">Assessment blueprints</div>
+    <div class="settings-section-body">
+      <fieldset class="settings-fieldset">
+        <legend class="settings-legend">Weekly sprint</legend>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label" for="wMcqs">MCQs per sprint</label><input class="form-control" id="wMcqs" type="number" value="<%= wk.mcqs %>" min="1"></div>
+          <div class="form-group"><label class="form-label" for="wMcqMarks">Marks per MCQ</label><input class="form-control" id="wMcqMarks" type="number" value="<%= wk.mcqMarks %>" min="1"></div>
+          <div class="form-group"><label class="form-label" for="wSubj">Subjective marks</label><input class="form-control" id="wSubj" type="number" value="<%= wk.subjectiveMarks %>" min="1"></div>
+        </div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" id="wNeg"<%= wk.negativeMarking ? ' checked' : '' %>><label class="form-check-label" for="wNeg">Negative marking</label></div>
+        <p class="form-text">Maximum score per sprint: <%= wk.max %>.</p>
+      </fieldset>
+
+      <fieldset class="settings-fieldset">
+        <legend class="settings-legend">Monthly simulation</legend>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label" for="mDur">Duration (minutes)</label><input class="form-control" id="mDur" type="number" value="<%= mo.durationMinutes %>" min="1"></div>
+          <div class="form-group"><label class="form-label" for="mPass">Passages</label><input class="form-control" id="mPass" type="number" value="<%= mo.passages %>" min="0"></div>
+          <div class="form-group"><label class="form-label" for="mPer">MCQs per passage</label><input class="form-control" id="mPer" type="number" value="<%= mo.mcqsPerPassage %>" min="1"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label" for="mMarks">Marks per MCQ</label><input class="form-control" id="mMarks" type="number" value="<%= mo.mcqMarks %>" min="1"></div>
+          <div class="form-group"><label class="form-label" for="mB">Part B questions</label><input class="form-control" id="mB" type="number" value="<%= mo.partB %>" min="0"></div>
+          <div class="form-group"><label class="form-label" for="mC">Part C questions</label><input class="form-control" id="mC" type="number" value="<%= mo.partC %>" min="0"></div>
+        </div>
+        <div class="form-check mb-1"><input class="form-check-input" type="checkbox" id="mPause"<%= mo.pause ? ' checked' : '' %>><label class="form-check-label" for="mPause">Allow pause</label></div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" id="mCompulsory"<%= mo.allCompulsory ? ' checked' : '' %>><label class="form-check-label" for="mCompulsory">All questions compulsory (no choice)</label></div>
+        <p class="form-text">Maximum score: <%= mo.max %> (<%= mo.passages * mo.mcqsPerPassage * mo.mcqMarks %> + <%= mo.partB * mo.subjectiveMarks %> + <%= mo.partC * mo.subjectiveMarks %>).</p>
+      </fieldset>
+    </div>
+  </section>
+
+  <section class="settings-section" aria-labelledby="aiHeading">
+    <div class="settings-section-header" id="aiHeading">AI evaluation</div>
+    <div class="settings-section-body">
+      <div class="config-item"><div class="config-info"><h3>Provider</h3><p><%= settings.ai.provider %></p></div><span class="status-dot inactive" aria-hidden="true"></span></div>
+      <div class="config-item"><div class="config-info"><h3>Model and prompt version</h3><p><%= settings.ai.model %> · prompt <%= settings.ai.promptVersion %></p></div></div>
+      <div class="config-item">
+        <div class="config-info"><h3>Maximum answer length</h3><p><%= settings.ai.note %></p></div>
+        <div><label class="visually-hidden" for="aiMaxChars">Maximum answer characters</label><input class="form-control" id="aiMaxChars" type="number" value="<%= settings.ai.maxAnswerChars %>" min="500"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="flex gap-2 mb-4">
+    <button type="submit" class="btn btn-primary">Save as new version</button>
+    <span class="text-secondary text-small settings-note">Stage 1: nothing is saved.</span>
+  </div>
+</form>
+<%- include('../layouts/footer') %>

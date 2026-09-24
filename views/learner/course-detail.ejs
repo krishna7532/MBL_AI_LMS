@@ -1,0 +1,49 @@
+<%- include('../layouts/header') %>
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="/courses">Courses</a><span aria-hidden="true">/</span><span aria-current="page"><%= course.name %></span>
+</nav>
+
+<div class="page-header">
+  <div>
+    <span class="course-code"><%= course.code %></span>
+    <h1 class="page-title"><%= course.name %></h1>
+    <p class="page-subtitle"><%= course.description %></p>
+  </div>
+  <div class="page-actions"><span class="badge badge-muted">Sprint day: <%= course.weekday %></span></div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="course-progress-header"><span><%= course.completedModules %> of <%= course.totalModules %> modules revised</span><span><%= course.progress %>%</span></div>
+    <div class="progress-bar" role="progressbar" aria-label="Modules revised" aria-valuenow="<%= course.progress %>" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill" style="width: <%= course.progress %>%"></div></div>
+  </div>
+</div>
+
+<h2 class="section-title">Modules</h2>
+<div class="card mb-4">
+  <div class="table-responsive">
+    <table class="table">
+      <caption class="visually-hidden">Modules in <%= course.name %></caption>
+      <thead><tr><th scope="col">Module</th><th scope="col">Topics</th><th scope="col">Revision status</th></tr></thead>
+      <tbody>
+        <% course.modules.forEach(function (m) { %>
+        <tr>
+          <td><%= m.name %></td>
+          <td><%= m.topics %></td>
+          <td><% if (m.completed) { %><span class="badge badge-success">Revised</span><% } else { %><span class="badge badge-muted">Not yet</span><% } %></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<h2 class="section-title">Your sprints for this course</h2>
+<% if (course.sprints.length) { %>
+  <% course.sprints.forEach(function (s) { %>
+    <%- include('../partials/sprint-card', { s: s, sprintHref: sprintHref }) %>
+  <% }) %>
+<% } else { %>
+  <div class="empty-state"><p class="empty-state-title">No sprints published yet</p><p class="empty-state-text">Sprints appear here after each weekly release.</p></div>
+<% } %>
+<%- include('../layouts/footer') %>

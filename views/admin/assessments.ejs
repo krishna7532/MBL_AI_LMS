@@ -1,0 +1,46 @@
+<%- include('../layouts/header') %>
+<div class="admin-header page-header">
+  <div>
+    <h1 class="page-title">Assessments</h1>
+    <p class="page-subtitle">Questions with learner-facing origin badges. Only an authenticated past exam may carry an exact PYQ badge.</p>
+  </div>
+</div>
+
+<div class="admin-filters">
+  <div class="admin-search">
+    <%- icon('search', 16) %>
+    <label class="visually-hidden" for="qSearch">Search questions</label>
+    <input class="form-control table-search" id="qSearch" type="search" placeholder="Search by ID, course, topic or status" data-table="#questionTable">
+  </div>
+</div>
+
+<div class="admin-table">
+  <div class="table-responsive">
+    <table class="table" id="questionTable">
+      <caption class="visually-hidden">Questions</caption>
+      <thead><tr><th scope="col">Question</th><th scope="col">Course</th><th scope="col">Format</th><th scope="col">Marks</th><th scope="col">Learner badge</th><th scope="col">Approval</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+      <tbody>
+        <% items.forEach(function (q) { %>
+        <tr>
+          <td>
+            <span class="audit-entity"><%= q._id %> v<%= q.version %></span>
+            <div class="question-text-preview"><%= q.prompt %></div>
+            <span class="text-secondary text-small"><%= q.topic %> · <%= fmt.label(q.difficulty) %></span>
+          </td>
+          <td><%= q.courseName %></td>
+          <td><%= q.responseFormat === 'subjective' ? 'Subjective' : 'MCQ' %><br><span class="text-secondary text-small"><%= fmt.label(q.questionType) %></span></td>
+          <td><%= q.marks %></td>
+          <td><span class="question-origin-badge"><%= q.originBadge %></span><br><span class="text-secondary text-small">Origin: <%= q.origin %></span></td>
+          <td><span class="badge <%= fmt.approvalClass(q.approvalStatus) %>"><%= fmt.label(q.approvalStatus) %></span></td>
+          <td class="admin-table-actions">
+            <button type="button" class="btn btn-sm btn-secondary" data-preview-action="Question preview opens in Stage 2.">Preview</button>
+            <% if (q.approvalStatus !== 'approved') { %><button type="button" class="btn btn-sm btn-primary" data-preview-action="Approval is recorded in Stage 2. Nothing was changed.">Approve</button><% } %>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<p class="text-secondary text-small mt-2">Answer keys, explanations, rubrics and private source references are visible here only. Learners never receive them before submission.</p>
+<%- include('../layouts/footer') %>

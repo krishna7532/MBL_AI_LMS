@@ -1,0 +1,76 @@
+<%- include('../layouts/header') %>
+<div class="admin-header page-header">
+  <div>
+    <h1 class="page-title">Releases</h1>
+    <p class="page-subtitle">Published releases are immutable. A correction creates a new version.</p>
+  </div>
+</div>
+
+<section class="card mb-4" aria-labelledby="uploadHeading">
+  <div class="card-body participation">
+    <div>
+      <h2 id="uploadHeading" class="section-title">Import a release package</h2>
+      <p class="text-secondary text-small">A versioned ZIP containing <code>manifest.json</code>, <code>notes/*.md</code>, <code>assessments/*.json</code> and <code>checksums.json</code>. No videos or raw source documents.</p>
+    </div>
+    <button type="button" class="btn btn-primary" disabled title="Available in Stage 2">Upload package (Stage 2)</button>
+  </div>
+</section>
+
+<% releases.forEach(function (r) {
+     const weekly = r.releaseType === 'weekly';
+     const isMonthly = r.releaseType === 'monthly';
+     const checks = [];
+     if (weekly) {
+       checks.push({ label: 'Five course sprints (one per course)', ok: r.notesCount === 5, detail: r.notesCount + ' of 5' });
+       checks.push({ label: 'Exactly 15 MCQs per sprint (75 total)', ok: r.mcqCount === 75, detail: r.mcqCount + ' of 75' });
+       checks.push({ label: 'One 10-mark subjective question per sprint', ok: r.subjectiveCount === 5, detail: r.subjectiveCount + ' of 5' });
+     } else if (isMonthly) {
+       checks.push({ label: 'Five course simulations, 25 MCQs each (125 total)', ok: r.mcqCount === 125, detail: r.mcqCount + ' of 125' });
+       checks.push({ label: 'Five subjective questions per course (25 total)', ok: r.subjectiveCount === 25, detail: r.subjectiveCount + ' of 25' });
+     }
+     checks.push({ label: 'Notes approved', ok: r.approval.notes === 'approved' || r.approval.notes === 'n/a', detail: fmt.label(r.approval.notes) });
+     checks.push({ label: 'Assessment approved', ok: r.approval.assessment === 'approved', detail: fmt.label(r.approval.assessment) });
+     const allOk = checks.every(function (c) { return c.ok; });
+%>
+<article class="release-card">
+  <div class="release-header">
+    <div>
+      <h2 class="release-title"><%= r.releaseId %></h2>
+      <div class="release-meta">
+        <span><%= fmt.label(r.releaseType) %><%= r.weekNumber ? ', week ' + r.weekNumber : r.month ? ', month ' + r.month : '' %></span>
+        <span>Version <%= r.version %></span>
+        <span><%= r.publishedAt ? 'Published ' + fmt.dateTime(r.publishedAt) : 'Not published' %></span>
+        <span>Checksum: <%= r.checksum || 'not generated' %></span>
+      </div>
+    </div>
+    <span class="badge <%= fmt.approvalClass(r.status) %>"><%= fmt.label(r.status) %></span>
+  </div>
+
+  <ol class="release-status-pipeline" aria-label="Release lifecycle">
+    <% r.steps.forEach(function (step) { %>
+    <li class="pipeline-step <%= step.state %>"<%- step.state === 'active' ? ' aria-current="step"' : '' %>>
+      <span class="pipeline-dot"><% if (step.state === 'completed') { %><%- icon('check', 14) %><% } %></span>
+      <span class="pipeline-label"><%= fmt.label(step.key) %></span>
+    </li>
+    <% }) %>
+  </ol>
+
+  <h3 class="release-subheading">Validation</h3>
+  <ul class="validation-list">
+    <% checks.forEach(function (c) { %>
+    <li class="<%= c.ok ? 'ok' : 'fail' %>"><span class="validation-mark" aria-hidden="true"><%- icon(c.ok ? 'check' : 'x', 16) %></span><span><span class="visually-hidden"><%= c.ok ? 'Passed: ' : 'Failed: ' %></span><%= c.label %> <span class="text-secondary">(<%= c.detail %>)</span></span></li>
+    <% }) %>
+  </ul>
+
+  <div class="release-actions">
+    <button type="button" class="btn btn-secondary btn-sm" data-preview-action="Release preview opens in Stage 2.">Preview</button>
+    <% if (r.status === 'published') { %>
+      <button type="button" class="btn btn-danger btn-sm btn-retire">Retire</button>
+    <% } else { %>
+      <button type="button" class="btn btn-primary btn-sm btn-publish"<%= allOk ? '' : ' disabled aria-describedby="blocked-' + r._id + '"' %>>Publish</button>
+      <% if (!allOk) { %><span class="text-secondary text-small" id="blocked-<%= r._id %>">Publishing is blocked until every validation check passes.</span><% } %>
+    <% } %>
+  </div>
+</article>
+<% }) %>
+<%- include('../layouts/footer') %>

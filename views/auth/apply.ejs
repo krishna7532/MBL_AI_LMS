@@ -1,0 +1,53 @@
+<%- include('../layouts/header') %>
+<div class="auth-card auth-card-wide">
+  <div class="auth-logo">
+    <img src="/images/mbl-logo.svg" alt="MBL" width="48" height="48">
+    <h1>Apply for a 14-day trial</h1>
+  </div>
+  <p class="auth-subtitle">Your application is reviewed by an admin. If approved, your 14-day trial starts immediately.</p>
+
+  <p class="auth-notice">In Stage 2 you sign in with Google first, and your name and email come from your Google account. Here they are shown as placeholders.</p>
+
+  <form id="applicationForm" class="auth-form" method="post" action="/apply" novalidate>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="fullName">Name</label>
+        <input class="form-control" id="fullName" type="text" value="" placeholder="From your Google account" disabled>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="email">Email</label>
+        <input class="form-control" id="email" type="email" value="" placeholder="From your Google account" disabled>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="phone">Phone number</label>
+      <input class="form-control" id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91 98765 43210" required aria-describedby="phoneHelp">
+      <span class="form-text" id="phoneHelp">Required. The admin may use it to verify your application. It is not used for automated SMS or WhatsApp messages.</span>
+    </div>
+
+    <fieldset class="consent-group">
+      <legend class="form-label">Consent</legend>
+      <div class="form-group">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="consent1" name="consent_terms" required>
+          <label class="form-check-label" for="consent1">I accept the Terms of Use (version 1.0).</label>
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="consent2" name="consent_privacy" required>
+          <label class="form-check-label" for="consent2">I accept the Privacy Policy (version 1.0).</label>
+        </div>
+      </div>
+      <span class="form-text">The full Terms and Privacy Policy will be published here after legal review, before launch.</span>
+    </fieldset>
+
+    <button type="submit" class="btn btn-primary btn-block btn-lg">Submit application</button>
+  </form>
+
+  <div id="applyResult" class="alert alert-info" role="status" hidden></div>
+
+  <p class="auth-footer">Already approved? <a href="/login">Go to sign-in</a></p>
+</div>
+<%- include('../layouts/footer') %>

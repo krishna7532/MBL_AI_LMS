@@ -1,0 +1,104 @@
+<%- include('../layouts/header') %>
+<%
+  const trial = user.trial;
+  const state = fmt.accountState(user.accountState);
+%>
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Account</h1>
+    <p class="page-subtitle">Your identity, access, plans and policies.</p>
+  </div>
+</div>
+
+<div class="account-grid">
+  <section class="card" aria-labelledby="identityHeading">
+    <div class="card-header"><h2 id="identityHeading" class="section-title mb-0">Identity</h2></div>
+    <div class="card-body">
+      <dl class="detail-list">
+        <div><dt>Name</dt><dd><%= user.name %></dd></div>
+        <div><dt>Email</dt><dd><%= user.email %></dd></div>
+        <div><dt>Phone</dt><dd><%= user.phone %></dd></div>
+        <div><dt>Sign-in</dt><dd>Google only. There is no password.</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="accessHeading">
+    <div class="card-header flex-between"><h2 id="accessHeading" class="section-title mb-0">Access</h2><span class="badge <%= state.css %>"><%= state.label %></span></div>
+    <div class="card-body">
+      <dl class="detail-list">
+        <div><dt>Trial started</dt><dd><%= fmt.dateTime(trial.startDate) %></dd></div>
+        <div><dt>Trial ends</dt><dd><%= fmt.dateTime(trial.endDate) %></dd></div>
+        <div><dt>Days left</dt><dd><%= trial.daysRemaining %></dd></div>
+      </dl>
+      <p class="text-secondary text-small mt-3">During the trial you can open content published inside the trial window. When it ends, protected content is blocked until a plan is active.</p>
+    </div>
+  </section>
+</div>
+
+<section id="plans" class="mt-4" aria-labelledby="plansHeading">
+  <h2 id="plansHeading" class="section-title">Plans</h2>
+  <div class="plans-grid">
+    <% plans.forEach(function (plan) { %>
+    <article class="card plan-card">
+      <div class="card-body">
+        <h3 class="plan-name"><%= plan.name %></h3>
+        <p class="plan-price"><%= fmt.rupees(plan.price) %> <span class="plan-duration">for <%= plan.duration %>, paid upfront</span></p>
+        <p class="text-secondary text-small mb-3"><%= plan.description %></p>
+        <ul class="plan-features">
+          <% plan.features.forEach(function (f) { %><li><%- icon('check', 16) %> <%= f %></li><% }) %>
+        </ul>
+      </div>
+      <div class="card-footer">
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="refund-<%= plan.code %>" disabled>
+          <label class="form-check-label" for="refund-<%= plan.code %>">I understand there is no voluntary refund after purchase.</label>
+        </div>
+        <button type="button" class="btn btn-primary btn-block" disabled>Pay <%= fmt.rupees(plan.price) %> with Razorpay (Stage 2)</button>
+      </div>
+    </article>
+    <% }) %>
+  </div>
+  <p class="text-secondary text-small mt-3"><%= constants.REFUND_DISCLOSURE %></p>
+  <p class="text-secondary text-small">Paid access starts only after the server confirms your payment. Tax treatment and the contracting entity are still to be confirmed before paid launch.</p>
+</section>
+
+<div class="account-grid mt-4">
+  <section class="card" aria-labelledby="paymentsHeading">
+    <div class="card-header"><h2 id="paymentsHeading" class="section-title mb-0">Payment history</h2></div>
+    <div class="card-body"><p class="text-secondary">No payments yet.</p></div>
+  </section>
+
+  <section class="card" aria-labelledby="policiesHeading">
+    <div class="card-header"><h2 id="policiesHeading" class="section-title mb-0">Policies you accepted</h2></div>
+    <div class="card-body">
+      <dl class="detail-list">
+        <div><dt>Terms of Use</dt><dd>Version <%= user.consents.terms.version %>, accepted <%= fmt.date(user.consents.terms.date) %></dd></div>
+        <div><dt>Privacy Policy</dt><dd>Version <%= user.consents.privacy.version %>, accepted <%= fmt.date(user.consents.privacy.date) %></dd></div>
+      </dl>
+    </div>
+  </section>
+</div>
+
+<section class="card mt-4" aria-labelledby="deleteHeading">
+  <div class="card-body participation">
+    <div>
+      <h2 id="deleteHeading" class="section-title">Delete your account</h2>
+      <p class="text-secondary text-small">Ask us to delete your account and personal data. The deletion timeline will be set before paid launch.</p>
+    </div>
+    <button type="button" class="btn btn-danger" data-modal-open="deleteModal">Request deletion</button>
+  </div>
+</section>
+
+<div class="modal" id="deleteModal" role="dialog" aria-modal="true" aria-labelledby="deleteTitle">
+  <div class="modal-overlay"></div>
+  <div class="modal-content">
+    <div class="modal-header"><h2 id="deleteTitle" class="modal-title">Request account deletion?</h2></div>
+    <div class="modal-body"><p>We'll review your request and delete your account and personal data. You'll lose access to all content.</p></div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+      <button type="button" class="btn btn-danger" data-preview-action="Deletion requests are recorded in Stage 2.">Request deletion</button>
+    </div>
+  </div>
+</div>
+<%- include('../layouts/footer') %>

@@ -1,0 +1,36 @@
+<%- include('../layouts/header') %>
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Courses</h1>
+    <p class="page-subtitle">Year 1 launches with five courses. <%= constants.REVISION_ONLY %>.</p>
+  </div>
+</div>
+
+<div class="courses-grid">
+  <% courses.year1.forEach(function (c) { %>
+  <article class="card course-card">
+    <div class="card-body course-card-body">
+      <span class="course-code"><%= c.code %></span>
+      <h2 class="course-title"><a href="/courses/<%= c.code %>"><%= c.name %></a></h2>
+      <p class="text-secondary text-small"><%= c.description %></p>
+      <div class="course-progress">
+        <div class="course-progress-header"><span><%= c.completedModules %> of <%= c.totalModules %> modules revised</span><span><%= c.progress %>%</span></div>
+        <div class="progress-bar" role="progressbar" aria-label="<%= c.name %> modules revised" aria-valuenow="<%= c.progress %>" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill" style="width: <%= c.progress %>%"></div></div>
+      </div>
+    </div>
+    <div class="card-footer flex-between">
+      <span class="text-secondary text-small">Sprint day: <%= c.weekday %></span>
+      <a class="btn btn-sm btn-secondary" href="/courses/<%= c.code %>">View course</a>
+    </div>
+  </article>
+  <% }) %>
+</div>
+
+<h2 class="section-title mt-4">Year 2 courses</h2>
+<p class="text-secondary text-small mb-3">The platform supports Year 2, but these courses are not active in the launch scope.</p>
+<ul class="year2-list">
+  <% courses.year2.forEach(function (c) { %>
+  <li><span class="course-code course-code-muted"><%= c.code %></span> <%= c.name %> <span class="badge badge-muted">Not active</span></li>
+  <% }) %>
+</ul>
+<%- include('../layouts/footer') %>

@@ -1,0 +1,67 @@
+<%- include('../layouts/header') %>
+<header class="assessment-header">
+  <div class="assessment-title">
+    <h1 class="assessment-title-text"><%= sim.courseName %> · Monthly simulation</h1>
+    <span class="text-secondary text-small"><%= sim.totalMarks %> marks · all questions compulsory</span>
+  </div>
+  <div class="assessment-header-actions">
+    <span class="save-indicator" id="autosaveStatus" aria-live="polite">Saved on this device</span>
+    <div class="timer-display" role="timer" aria-label="Time remaining">
+      <%- icon('clock', 18) %>
+      <span id="timerDisplay" data-duration="<%= durationMinutes %>" data-storage-key="mbl_stage1_<%= sim.id %>_expires">--:--</span>
+    </div>
+    <button type="button" class="btn btn-primary" id="submitSimBtn" data-modal-open="submitSimModal">Submit exam</button>
+  </div>
+</header>
+<p class="visually-hidden" id="timerAnnounce" role="status" aria-live="polite"></p>
+
+<div class="assessment-body">
+  <div class="assessment-content" id="simContent" tabindex="-1">
+    <%- include('../partials/loading', { message: 'Loading your simulation…' }) %>
+    <noscript><p class="alert alert-warning">JavaScript is needed to take the simulation preview.</p></noscript>
+  </div>
+
+  <aside class="assessment-sidebar" aria-label="Simulation navigator">
+    <div class="section-tabs" role="tablist" aria-label="Sections">
+      <button type="button" class="section-tab active" role="tab" data-section="A" aria-selected="true">Part A</button>
+      <button type="button" class="section-tab" role="tab" data-section="B" aria-selected="false">Part B</button>
+      <button type="button" class="section-tab" role="tab" data-section="C" aria-selected="false">Part C</button>
+    </div>
+    <div class="question-dots-container">
+      <div class="question-dots sim-dots" id="simDots" role="group" aria-label="Jump to a question group"></div>
+      <ul class="dot-legend text-small text-secondary">
+        <li><span class="legend-swatch answered"></span> Fully answered</li>
+        <li><span class="legend-swatch partial"></span> Partly answered</li>
+        <li><span class="legend-swatch"></span> Not started</li>
+      </ul>
+      <p class="stage-note-small">Stage 1: timer is display only. The server-controlled timer arrives in Stage 2.</p>
+    </div>
+  </aside>
+</div>
+
+<div class="modal" id="submitSimModal" role="dialog" aria-modal="true" aria-labelledby="submitSimTitle">
+  <div class="modal-overlay"></div>
+  <div class="modal-content">
+    <div class="modal-header"><h2 id="submitSimTitle" class="modal-title">Submit the simulation?</h2></div>
+    <div class="modal-body"><div id="simSubmitSummary"></div></div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-modal-close>Keep working</button>
+      <button type="button" class="btn btn-primary" id="confirmSimSubmit">Submit exam</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="timeUpModal" role="alertdialog" aria-modal="true" aria-labelledby="timeUpTitle">
+  <div class="modal-overlay"></div>
+  <div class="modal-content">
+    <div class="modal-header"><h2 id="timeUpTitle" class="modal-title">Time is up</h2></div>
+    <div class="modal-body">
+      <p>Your saved answers are submitted automatically when time runs out.</p>
+      <p class="text-secondary text-small mt-2">Stage 1 preview: nothing was submitted or scored.</p>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-primary" id="timeUpContinue">Continue</button></div>
+  </div>
+</div>
+
+<script type="application/json" id="simData"><%- fmt.json(sim) %></script>
+<%- include('../layouts/footer') %>

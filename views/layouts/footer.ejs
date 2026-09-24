@@ -1,0 +1,17 @@
+<% if (layout === 'app') { %>
+      </main>
+      <footer class="app-footer">
+        <p><%= constants.INDEPENDENCE_NOTICE %></p>
+      </footer>
+    </div>
+  </div>
+<% } else { %>
+  </main>
+<% } %>
+<div id="toastContainer" class="toast-container" role="status" aria-live="polite"></div>
+<script src="/js/main.js"></script>
+<% pageScripts.forEach(function (name) { %>
+<script src="/js/<%= name %>.js"></script>
+<% }) %>
+</body>
+</html>

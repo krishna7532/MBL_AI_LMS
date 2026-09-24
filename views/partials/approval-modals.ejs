@@ -1,0 +1,31 @@
+<div class="modal" id="approveModal" role="dialog" aria-modal="true" aria-labelledby="approveTitle">
+  <div class="modal-overlay"></div>
+  <div class="modal-content">
+    <div class="modal-header"><h2 id="approveTitle" class="modal-title">Approve <span data-modal-user>this applicant</span>?</h2></div>
+    <div class="modal-body">
+      <p>Approving starts a 14-day trial immediately. The learner gets an email with the exact start and expiry time in IST.</p>
+      <p class="text-secondary text-small mt-2">The trial unlocks only releases published during those 14 days.</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+      <button type="button" class="btn btn-primary" data-preview-action="Approval is recorded in Stage 2. Nothing was changed.">Approve and start trial</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="rejectModal" role="dialog" aria-modal="true" aria-labelledby="rejectTitle">
+  <div class="modal-overlay"></div>
+  <div class="modal-content">
+    <div class="modal-header"><h2 id="rejectTitle" class="modal-title">Reject <span data-modal-user>this applicant</span>?</h2></div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label" for="rejectReason">Reason (shown to the applicant if you fill it in)</label>
+        <textarea class="form-control" id="rejectReason" rows="3" placeholder="For example: could not verify enrollment"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+      <button type="button" class="btn btn-danger" data-preview-action="Rejection is recorded in Stage 2. Nothing was changed.">Reject application</button>
+    </div>
+  </div>
+</div>

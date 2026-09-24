@@ -1,0 +1,123 @@
+<%- include('../layouts/header') %>
+<%
+  const trial = user.trial;
+  const w = data.week;
+%>
+<section class="dashboard-welcome">
+  <h1>Welcome back, <%= user.name.split(' ')[0] %></h1>
+  <p><strong><%= constants.REVISION_ONLY %></strong>. Complete at least <%= w.goal %> of your <%= w.total %> course sprints each week. About 30 minutes each.</p>
+</section>
+
+<% if (trial && trial.isActive) { %>
+<div class="trial-banner<%= trial.daysRemaining <= 3 ? ' expiring' : '' %>" data-days="<%= trial.daysRemaining %>" role="status">
+  <span class="trial-banner-text">Your trial ends <%= fmt.dateTime(trial.endDate) %> (<%= trial.daysRemaining %> days left). You can open content published during your trial only.</span>
+  <a class="btn btn-sm btn-primary upgrade-btn" href="/profile#plans">See plans</a>
+</div>
+<% } %>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-header"><span class="stat-label">Sprints completed, Week <%= w.number %></span><span class="stat-icon"><%- icon('check') %></span></div>
+    <div class="stat-value"><%= w.completed %> of <%= w.total %></div>
+    <div class="stat-change">Goal: <%= w.goal %> of <%= w.total %></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-header"><span class="stat-label">Points this week</span><span class="stat-icon"><%- icon('chart') %></span></div>
+    <div class="stat-value"><%= w.bestTotal %> / <%= w.maxTotal %></div>
+    <div class="stat-change">Best score per sprint</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-header"><span class="stat-label">Monthly simulation</span><span class="stat-icon"><%- icon('calendar') %></span></div>
+    <div class="stat-value"><%= data.monthlyOpen %> open</div>
+    <div class="stat-change"><%= data.monthlyFeatured.courseName %>, 3 hours</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-header"><span class="stat-label">Trial</span><span class="stat-icon"><%- icon('clock') %></span></div>
+    <div class="stat-value"><%= trial.daysRemaining %> days left</div>
+    <div class="stat-change">Ends <%= fmt.date(trial.endDate) %></div>
+  </div>
+</div>
+
+<div class="dashboard-grid">
+  <div class="weekly-overview">
+    <h2 class="section-title">Weekly sprints</h2>
+
+    <% data.weeks.forEach(function (week) { %>
+      <% if (week.state === 'current' || week.state === 'published') { %>
+        <details class="week-block"<%= week.state === 'current' ? ' open' : '' %>>
+          <summary>
+            <span class="week-title">Week <%= week.number %></span>
+            <% if (week.state === 'current') { %><span class="badge badge-primary">Current week</span><% } %>
+            <span class="week-meta"><%= week.sprints.filter(function (s) { return s.status === 'completed'; }).length %> of <%= week.sprints.length %> completed</span>
+          </summary>
+          <div class="week-body">
+            <% week.sprints.forEach(function (s) { %>
+              <%- include('../partials/sprint-card', { s: s, sprintHref: sprintHref }) %>
+            <% }) %>
+          </div>
+        </details>
+      <% } else if (week.state === 'locked') { %>
+        <div class="week-block week-locked">
+          <div class="week-title-row">
+            <span class="week-title">Week <%= week.number %></span>
+            <span class="badge badge-muted"><%- icon('lock', 12) %> Locked</span>
+          </div>
+          <p class="text-secondary text-small">Published <%= fmt.date(week.publishedAt) %>, before your trial started on <%= fmt.date(week.trialStart) %>. Trial access covers content published inside your trial window.</p>
+        </div>
+      <% } else { %>
+        <div class="week-block week-upcoming">
+          <div class="week-title-row">
+            <span class="week-title">Week <%= week.number %></span>
+            <span class="badge badge-warning">Not published yet</span>
+          </div>
+          <p class="text-secondary text-small">This week's sprints appear here after an admin approves and publishes the release.</p>
+        </div>
+      <% } %>
+    <% }) %>
+
+    <h2 class="section-title mt-4">Monthly Revision</h2>
+    <div class="card">
+      <div class="card-body monthly-strip">
+        <div>
+          <h3 class="sprint-course"><%= data.monthlyFeatured.title %></h3>
+          <p class="text-secondary text-small">3 hours, 100 marks. Part A: 5 passages with 5 MCQs each. Part B: 3 scenario questions. Part C: 2 doctrinal questions.</p>
+        </div>
+        <a class="btn btn-primary" href="/monthly/<%= data.monthlyFeatured._id %>">Open simulation</a>
+      </div>
+    </div>
+  </div>
+
+  <aside class="recent-results">
+    <h2 class="section-title">Recent results</h2>
+    <div class="card">
+      <ul class="result-list">
+        <% data.recentResults.forEach(function (r) { %>
+        <li>
+          <a href="/results/<%= r._id %>">
+            <span class="result-list-title"><%= r.title %></span>
+            <span class="result-list-meta"><%= fmt.date(r.submittedAt) %></span>
+          </a>
+          <span class="sprint-score"><%= r.earned %>/<%= r.max %></span>
+        </li>
+        <% }) %>
+      </ul>
+    </div>
+
+    <h2 class="section-title mt-4">Leaderboard, Banking Law week 7</h2>
+    <div class="card leaderboard-summary">
+      <div class="table-responsive">
+        <table class="table">
+          <caption class="visually-hidden">Top three handles, Banking Law week 7</caption>
+          <thead><tr><th scope="col">Rank</th><th scope="col">Handle</th><th scope="col">Score</th></tr></thead>
+          <tbody>
+            <% data.leaderboardTop.forEach(function (r) { %>
+            <tr<%= r.isMe ? ' class="leaderboard-current-user"' : '' %>><td><%= r.rank %></td><td><%= r.alias %><%= r.isMe ? ' (you)' : '' %></td><td><%= r.score %>/40</td></tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer"><a href="/leaderboard">Open leaderboard</a></div>
+    </div>
+  </aside>
+</div>
+<%- include('../layouts/footer') %>

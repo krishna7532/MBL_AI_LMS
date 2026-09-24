@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title><%= title ? title + ' · ' : '' %><%= constants.APP_NAME %></title>
+  <link rel="icon" href="/images/mbl-logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/main.css">
+  <% pageStyles.forEach(function (name) { %>
+  <link rel="stylesheet" href="/css/<%= name %>.css">
+  <% }) %>
+  <link rel="stylesheet" href="/css/responsive.css">
+</head>
+<body class="layout-<%= layout %> <%= bodyClass %>"<% if (user && user.leaderboardAlias && !isAdminArea) { %> data-user-alias="<%= user.leaderboardAlias %>"<% } %>>
+<a class="skip-link" href="#main">Skip to main content</a>
+<%- include('../partials/stage-banner') %>
+<% if (layout === 'app') { %>
+  <%- include('../partials/navbar') %>
+  <div class="app-layout" id="appLayout">
+    <aside class="app-sidebar" id="appSidebar" aria-label="Primary">
+      <%- include('../partials/sidebar') %>
+    </aside>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <div class="app-main">
+      <main id="main" class="app-content" tabindex="-1">
+<% } else if (layout === 'auth') { %>
+  <main id="main" class="auth-page" tabindex="-1">
+<% } else { %>
+  <main id="main" class="focus-main" tabindex="-1">
+<% } %>

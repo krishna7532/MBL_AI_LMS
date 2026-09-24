@@ -1,0 +1,324 @@
+/* ==========================================================================
+   admin.css - Admin Panel Styling
+   ========================================================================== */
+
+.admin-header {
+  margin-bottom: 2rem;
+}
+
+.admin-filters {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  background: #fff;
+  padding: 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.admin-search {
+  position: relative;
+  flex: 1;
+  min-width: 250px;
+}
+.admin-search svg {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  width: 1rem;
+  height: 1rem;
+}
+.admin-search .form-control {
+  padding-left: 2.25rem;
+}
+
+.admin-table {
+  background: #fff;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.admin-table th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 2px solid var(--border);
+}
+.admin-table td {
+  padding: 1rem;
+}
+.admin-table-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.admin-card {
+  background: #fff;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 1.5rem;
+  height: 100%;
+}
+
+/* Approvals */
+.approval-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 1rem;
+}
+.approval-info {
+  flex: 1;
+}
+.approval-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+.approval-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.user-status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.status-active { background: var(--success-light); color: var(--success); }
+.status-pending { background: var(--warning-light); color: var(--warning); }
+.status-suspended { background: var(--danger-light); color: var(--danger); }
+
+/* Releases */
+.release-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.release-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+}
+.release-meta {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+.release-status-pipeline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1.5rem;
+  position: relative;
+  padding: 0 1rem;
+}
+.release-status-pipeline::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: 2rem;
+  right: 2rem;
+  height: 2px;
+  background: var(--border);
+  z-index: 0;
+}
+.pipeline-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+  background: #fff;
+  padding: 0 0.5rem;
+}
+.pipeline-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--background);
+  border: 2px solid var(--border);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pipeline-step.active .pipeline-dot {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+.pipeline-step.completed .pipeline-dot {
+  background: var(--success);
+  border-color: var(--success);
+  color: white;
+}
+.pipeline-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.pipeline-step.active .pipeline-label {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* Content & Assessment Management */
+.content-card {
+  display: flex;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+.content-preview {
+  padding: 1.25rem;
+  flex: 1;
+}
+.content-meta {
+  width: 250px;
+  background: var(--background);
+  padding: 1.25rem;
+  border-left: 1px solid var(--border);
+}
+
+.question-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.question-row:last-child {
+  border-bottom: none;
+}
+.question-type-icon {
+  width: 2rem;
+  height: 2rem;
+  background: var(--background);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  margin-right: 1rem;
+}
+.question-content {
+  flex: 1;
+}
+.question-text-preview {
+  font-size: 0.875rem;
+  color: var(--text);
+  margin-bottom: 0.25rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Audit Log */
+.audit-log-row {
+  font-size: 0.875rem;
+}
+.audit-action {
+  font-weight: 600;
+  color: var(--text);
+}
+.audit-action.create { color: var(--success); }
+.audit-action.update { color: var(--info); }
+.audit-action.delete { color: var(--danger); }
+.audit-entity {
+  font-family: monospace;
+  background: var(--background);
+  padding: 0.125rem 0.25rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+/* Settings */
+.settings-section {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 2rem;
+  overflow: hidden;
+}
+.settings-section-header {
+  padding: 1rem 1.5rem;
+  background: #f9fafb;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+.settings-section-body {
+  padding: 1.5rem;
+}
+.config-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.config-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.config-info h4 {
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
+}
+.config-info p {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 0.5rem;
+}
+.status-dot.active { background-color: var(--success); }
+.status-dot.inactive { background-color: var(--muted); }
+.status-dot.error { background-color: var(--danger); }
+
+/* Additions for the EJS build */
+.admin-two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; align-items: start; }
+.approval-card { gap: 1rem; flex-wrap: wrap; }
+.approval-name { font-size: 1rem; margin-bottom: 0; }
+.admin-table th { text-transform: none; letter-spacing: 0; font-size: 0.8125rem; }
+.admin-table-actions { flex-wrap: wrap; }
+.release-title { font-size: 1rem; margin-bottom: 0.25rem; }
+.release-meta { flex-wrap: wrap; gap: 0.25rem 1.25rem; }
+.release-subheading { font-size: 0.875rem; margin: 1.5rem 0 0.5rem; }
+.release-status-pipeline { overflow-x: auto; gap: 0.5rem; padding-bottom: 0.25rem; }
+.validation-list li { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; font-size: 0.875rem; }
+.validation-list .ok .validation-mark { color: var(--success); }
+.validation-list .fail .validation-mark { color: var(--danger); }
+.release-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.settings-fieldset { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; margin-bottom: 1rem; }
+.settings-legend { font-weight: 600; font-size: 0.875rem; padding: 0 0.5rem; }
+.config-item { gap: 1rem; flex-wrap: wrap; }
+.config-info h3 { font-size: 0.875rem; }
+.audit-log-row td { vertical-align: top; }
+.audit-action.delete { color: var(--danger); }
+.settings-note { align-self: center; }

@@ -1,0 +1,150 @@
+/* ==========================================================================
+   auth.css - Authentication & Access Pages
+   ========================================================================== */
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--background);
+  padding: 2rem 1rem;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 440px;
+  background-color: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
+  padding: 2.5rem 2rem;
+}
+
+.auth-logo {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+.auth-logo img {
+  height: 40px;
+}
+.auth-logo h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: -0.02em;
+}
+
+.auth-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.auth-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.auth-form {
+  margin-bottom: 1.5rem;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 1.5rem 0;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--border);
+}
+.auth-divider span {
+  padding: 0 0.75rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.625rem 1rem;
+  background-color: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+.google-btn:hover {
+  background-color: var(--background);
+  box-shadow: var(--shadow);
+}
+.google-btn img,
+.google-btn svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.auth-footer {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-top: 1.5rem;
+}
+
+.auth-notice {
+  background-color: var(--info-light);
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  font-size: 0.875rem;
+  color: var(--info);
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.consent-group {
+  margin-bottom: 1.5rem;
+  background-color: var(--background);
+  padding: 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.apply-success {
+  text-align: center;
+  padding: 2rem 0;
+}
+.apply-success svg {
+  color: var(--success);
+  width: 3rem;
+  height: 3rem;
+  margin-bottom: 1rem;
+}
+
+/* Additions for the EJS build */
+.auth-logo { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
+.auth-card-wide { max-width: 560px; }
+.auth-inline-note { font-size: 0.875rem; color: var(--text-secondary); background: var(--background); border-radius: var(--radius-sm); padding: 0.75rem 1rem; margin-top: 0.75rem; }
+.auth-state-icon { display: inline-flex; margin-bottom: 1rem; color: var(--primary); }
+.auth-state-icon.state-pending { color: var(--warning); }
+.auth-state-icon.state-rejected { color: var(--danger); }
+.apply-success .auth-state-icon svg { width: 3rem; height: 3rem; }
+.auth-steps { list-style: decimal; padding-left: 1.5rem; margin-bottom: 1.5rem; font-size: 0.9375rem; }
+.auth-steps li { margin-bottom: 0.5rem; }
+.consent-group legend { padding: 0 0.25rem; }
+.google-btn:focus-visible { outline: 3px solid var(--primary); }
+.auth-form .form-row { flex-wrap: wrap; }

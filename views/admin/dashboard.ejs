@@ -1,0 +1,60 @@
+<%- include('../layouts/header') %>
+<% const s = data.stats; %>
+<div class="admin-header page-header">
+  <div>
+    <h1 class="page-title">Admin overview</h1>
+    <p class="page-subtitle">Approvals, releases and system activity.</p>
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card"><div class="stat-header"><span class="stat-label">Pending approvals</span><span class="stat-icon"><%- icon('users') %></span></div><div class="stat-value"><%= s.pendingApprovals %></div><div class="stat-change"><a href="/admin/users">Review applicants</a></div></div>
+  <div class="stat-card"><div class="stat-header"><span class="stat-label">Active trials</span><span class="stat-icon"><%- icon('clock') %></span></div><div class="stat-value"><%= s.activeTrials %></div><div class="stat-change">of <%= s.totalUsers %> users</div></div>
+  <div class="stat-card"><div class="stat-header"><span class="stat-label">Paid learners</span><span class="stat-icon"><%- icon('check') %></span></div><div class="stat-value"><%= s.paidLearners %></div><div class="stat-change"><%= s.expiredLearners %> trial expired</div></div>
+  <div class="stat-card"><div class="stat-header"><span class="stat-label">Evaluations pending</span><span class="stat-icon"><%- icon('alert') %></span></div><div class="stat-value"><%= s.evaluationsPending %></div><div class="stat-change">Retry or refer for manual review</div></div>
+</div>
+
+<div class="admin-two-col">
+  <section aria-labelledby="pendingHeading">
+    <div class="flex-between mb-2"><h2 id="pendingHeading" class="section-title mb-0">Applications waiting</h2><a href="/admin/users">All users</a></div>
+    <% if (data.pending.length) { %>
+      <% data.pending.forEach(function (u) { %><%- include('../partials/approval-card', { u: u }) %><% }) %>
+    <% } else { %>
+      <div class="empty-state card"><p class="empty-state-title">No applications waiting</p></div>
+    <% } %>
+  </section>
+
+  <section aria-labelledby="releasesHeading">
+    <div class="flex-between mb-2"><h2 id="releasesHeading" class="section-title mb-0">Releases</h2><a href="/admin/releases">All releases</a></div>
+    <div class="card">
+      <ul class="result-list">
+        <% data.releases.forEach(function (r) { %>
+        <li>
+          <a href="/admin/releases"><span class="result-list-title"><%= r.releaseId %></span><span class="result-list-meta"><%= r.publishedAt ? 'Published ' + fmt.date(r.publishedAt) : 'Not published' %></span></a>
+          <span class="badge <%= fmt.approvalClass(r.status) %>"><%= fmt.label(r.status) %></span>
+        </li>
+        <% }) %>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<section class="mt-4" aria-labelledby="activityHeading">
+  <div class="flex-between mb-2"><h2 id="activityHeading" class="section-title mb-0">Recent activity</h2><a href="/admin/audit-logs">Full audit log</a></div>
+  <div class="admin-table">
+    <div class="table-responsive">
+      <table class="table">
+        <caption class="visually-hidden">Recent audit events</caption>
+        <thead><tr><th scope="col">When</th><th scope="col">Actor</th><th scope="col">Action</th><th scope="col">Target</th></tr></thead>
+        <tbody>
+          <% data.recentAudit.forEach(function (a) { %>
+          <tr class="audit-log-row"><td><%= fmt.dateTime(a.timestamp) %></td><td><%= a.actor %></td><td><span class="audit-action <%= fmt.auditClass(a.action) %>"><%= a.action %></span></td><td><%= a.entityName %></td></tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<%- include('../partials/approval-modals') %>
+<%- include('../layouts/footer') %>
