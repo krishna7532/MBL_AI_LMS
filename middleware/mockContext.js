@@ -10,9 +10,12 @@ const mock = require('../services/mockService');
 
 module.exports = function mockContext(req, res, next) {
   const isAdminArea = req.path === '/admin' || req.path.startsWith('/admin/');
+  const authenticatedUser = req.user || null;
+
   res.locals.currentPath = req.path;
   res.locals.isAdminArea = isAdminArea;
-  res.locals.user = isAdminArea ? mock.getAdminUser() : mock.getLearner();
+  res.locals.user = authenticatedUser || (isAdminArea ? mock.getAdminUser() : mock.getLearner());
+  res.locals.isAuthenticated = !!authenticatedUser;
   res.locals.unreadCount = isAdminArea ? 0 : mock.getUnreadCount();
   res.locals.layout = 'app';
   res.locals.title = '';

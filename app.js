@@ -16,6 +16,8 @@ const passport = require('./config/passport');
 const authRoutes = require('./routes/auth');
 require('dotenv').config();
 
+const pool=require('./config/db');
+
 const app = express();
 
 app.set('view engine', 'ejs');
@@ -34,10 +36,40 @@ const sessionOption={
     saveUninitialized: false
 }
 app.use(session(sessionOption));
+
+//for database connection
+app.use(express.json());
+app.get("/api/test-db", async (req, res) => {
+    try {
+        const result = await pool.query("SELECT NOW()");
+
+        res.json({
+            success: true,
+            message: "PostgreSQL connected successfully",
+            time: result.rows[0].now
+        });
+    } catch (error) {
+        console.error("Database error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: "Database connection failed",
+            error: error.message
+        });
+    }
+});
 //for passport autherization
 app.use(passport.initialize());
 app.use(passport.session());
-app.use('/auth',authRoutes);
+
+app.use((req, res, next) => {
+  res.locals.isAuthenticated = !!(req.user && req.user.email);
+  if (req.user) {
+    res.locals.user = req.user;
+  }
+  next();
+});
+
 // Baseline security headers. Full CSP / CSRF / rate limiting are Stage 2 work.
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');

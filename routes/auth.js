@@ -12,29 +12,28 @@ router.post('/apply', c.applyNotImplemented);
 router.get('/pending', c.pending);
 router.get('/rejected', c.rejected);
 
-module.exports = router;
-
-
-
-// Step 1: redirect user to Google
+//for authentication
 router.get(
-  '/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] })
-);
-
-// Step 2: Google redirects back here
-router.get(
-  '/google/callback',
+  '/auth/google',
   passport.authenticate('google', {
-    successRedirect: '/dashboard',
-    failureRedirect: '/login',
+    scope: ['profile', 'email'],
+    prompt: 'select_account',
   })
 );
 
-// Logout
-router.get('/logout', (req, res) => {
-  req.logout(() => {
-    res.redirect('/');
+router.get(
+  '/auth/google/callback',
+  passport.authenticate('google', {
+    successRedirect: '/dashboard',
+    failureRedirect: '/login',
+    failureFlash: false,
+  })
+);
+
+router.get('/logout', (req, res, next) => {
+  req.logout((error) => {
+    if (error) return next(error);
+    res.redirect('/login');
   });
 });
 

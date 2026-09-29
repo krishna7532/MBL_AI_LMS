@@ -226,7 +226,7 @@ CREATE TABLE consents (
 
     user_agent TEXT,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_consents_user
@@ -250,7 +250,7 @@ CREATE TABLE access_approvals (
 
     reason TEXT,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_access_approvals_user
@@ -273,7 +273,7 @@ CREATE TABLE trials (
 
     state trial_state NOT NULL DEFAULT 'active',
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT trial_dates_valid
         CHECK (ends_at > starts_at)
@@ -302,7 +302,7 @@ CREATE TABLE plans (
 
     active BOOLEAN NOT NULL DEFAULT TRUE,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT plan_price_valid
         CHECK (price >= 0)
@@ -366,9 +366,9 @@ CREATE TABLE subscriptions (
 
     status subscription_status NOT NULL DEFAULT 'pending',
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT subscription_dates_valid
         CHECK (ends_at > starts_at)
@@ -388,7 +388,7 @@ CREATE INDEX idx_subscriptions_status
 CREATE TABLE academic_years (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
-    external_id VARCHAR(100) UNIQUE,
+    -- external_id VARCHAR(100) UNIQUE,
 
     label VARCHAR(50) NOT NULL UNIQUE,
 
@@ -398,7 +398,7 @@ CREATE TABLE academic_years (
 
     active BOOLEAN NOT NULL DEFAULT FALSE,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT academic_year_dates_valid
         CHECK (ends_at > starts_at)
@@ -420,9 +420,9 @@ CREATE TABLE courses (
 
     active BOOLEAN NOT NULL DEFAULT TRUE,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    -- updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 
@@ -445,9 +445,9 @@ CREATE TABLE taxonomy_nodes (
 
     aliases TEXT[] NOT NULL DEFAULT '{}',
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     UNIQUE(type, canonical_name)
 );
@@ -493,9 +493,9 @@ CREATE TABLE source_records (
 
     review_notes TEXT,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    -- updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 
@@ -522,7 +522,7 @@ CREATE TABLE source_chunks (
 
     text_hash VARCHAR(128) NOT NULL,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_source_chunks_source
@@ -554,11 +554,11 @@ CREATE TABLE exam_pattern_rules (
 
     version INTEGER NOT NULL DEFAULT 1,
 
-    active BOOLEAN NOT NULL DEFAULT TRUE,
+    -- active BOOLEAN NOT NULL DEFAULT TRUE,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     UNIQUE(rule_key, version)
 );
@@ -571,7 +571,7 @@ CREATE TABLE exam_pattern_rules (
 CREATE TABLE assessment_blueprints (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
-    code VARCHAR(100) NOT NULL,
+    -- code VARCHAR(100) NOT NULL,
 
     version INTEGER NOT NULL DEFAULT 1,
 
@@ -585,11 +585,11 @@ CREATE TABLE assessment_blueprints (
 
     status assessment_status NOT NULL DEFAULT 'draft',
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    UNIQUE(code, version)
+    --UNIQUE(code, version)
 );
 
 
@@ -664,9 +664,9 @@ CREATE TABLE revision_notes (
         REFERENCES taxonomy_nodes(id)
         ON DELETE SET NULL,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     UNIQUE(stable_id, version)
 );
@@ -696,9 +696,9 @@ CREATE TABLE passages (
 
     source_lineage JSONB NOT NULL DEFAULT '[]',
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     UNIQUE(stable_id, version)
 );
@@ -737,6 +737,8 @@ CREATE TABLE questions (
 
     course_id UUID NOT NULL
         REFERENCES courses(id),
+
+    concept_ids JSONB NULL DEFAULT '[]',
 
     exam_role VARCHAR(50) NOT NULL,
 
@@ -788,9 +790,9 @@ CREATE TABLE questions (
 
     private_provenance JSONB,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     UNIQUE(question_id, version)
 );
@@ -884,7 +886,7 @@ CREATE TABLE assessment_items (
 
     compulsory BOOLEAN NOT NULL DEFAULT TRUE,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     UNIQUE(assessment_id, item_order)
 );
@@ -926,17 +928,17 @@ CREATE TABLE attempts (
 
     state attempt_state NOT NULL DEFAULT 'in_progress',
 
-    mcq_score NUMERIC(8,2) DEFAULT 0,
+    -- mcq_score NUMERIC(8,2) DEFAULT 0,
 
-    subjective_score NUMERIC(8,2) DEFAULT 0,
+    -- subjective_score NUMERIC(8,2) DEFAULT 0,
 
-    total_score NUMERIC(8,2) DEFAULT 0,
+    -- total_score NUMERIC(8,2) DEFAULT 0,
 
-    max_score NUMERIC(8,2),
+    -- max_score NUMERIC(8,2),
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     UNIQUE(user_id, assessment_id, attempt_number)
 );
@@ -977,11 +979,11 @@ CREATE TABLE responses (
 
     submitted_at TIMESTAMPTZ,
 
-    score NUMERIC(8,2),
+    -- score NUMERIC(8,2),
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     UNIQUE(attempt_id, assessment_item_id)
 );
@@ -1010,27 +1012,19 @@ CREATE TABLE evaluations (
     score NUMERIC(8,2),
 
     rubric_breakdown JSONB,
-
     feedback JSONB,
 
-    model_provider VARCHAR(100),
-
-    model_id VARCHAR(255),
-
+    model_version VARCHAR(100),
     prompt_version VARCHAR(100),
-
     rubric_version VARCHAR(100),
 
     reasoning_effort VARCHAR(100),
 
     input_tokens INTEGER,
-
     output_tokens INTEGER,
-
     latency_ms INTEGER,
 
     answer_hash VARCHAR(128),
-
     normalized_answer_hash VARCHAR(128),
 
     error_message TEXT,
@@ -1039,9 +1033,7 @@ CREATE TABLE evaluations (
         REFERENCES users(id),
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
     completed_at TIMESTAMPTZ,
-
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -1070,9 +1062,9 @@ CREATE TABLE leaderboard_profiles (
 
     status leaderboard_status NOT NULL DEFAULT 'opted_out',
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    -- updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 
@@ -1102,17 +1094,17 @@ CREATE TABLE leaderboard_scores (
 
     best_score NUMERIC(8,2),
 
-    max_score NUMERIC(8,2),
+    -- max_score NUMERIC(8,2),
 
-    score_type VARCHAR(50) NOT NULL,
+    -- score_type VARCHAR(50) NOT NULL,
 
-    week_number INTEGER,
+    -- week_number INTEGER,
 
-    month_number INTEGER,
+    -- month_number INTEGER,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    -- updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_leaderboard_scores_year
@@ -1142,13 +1134,13 @@ CREATE TABLE notifications (
 
     delivery_state notification_state NOT NULL DEFAULT 'pending',
 
-    payload JSONB,
+    -- payload JSONB,
 
     sent_at TIMESTAMPTZ,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    -- updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_notifications_user

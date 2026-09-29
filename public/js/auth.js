@@ -5,17 +5,7 @@
  * Google OAuth and application submission are wired up in Stage 2 (PRD §7.1, §19.1).
  */
 document.addEventListener('DOMContentLoaded', function () {
-  // ── Google button: explains that OAuth is not connected yet ─────────────
-  var googleBtn = document.getElementById('googleSignIn');
-  var status = document.getElementById('oauthStatus');
-  if (googleBtn && status) {
-    googleBtn.addEventListener('click', function (e) {
-      e.preventDefault();
-      status.hidden = false;
-      status.setAttribute('tabindex', '-1');
-      status.focus();
-    });
-  }
+
 
   // ── Application form validation ─────────────────────────────────────────
   var form = document.getElementById('applicationForm');
@@ -85,10 +75,12 @@ document.addEventListener('DOMContentLoaded', function () {
     if (firstInvalid) { firstInvalid.focus(); return; }
 
     var result = document.getElementById('applyResult');
+    var googleBtn=document.getElementById('googleSignIn');
     form.hidden = true;
+    if (googleBtn) googleBtn.style.display = 'none';
     if (result) {
       result.hidden = false;
-      result.textContent = 'Your entries look valid. This is a Stage 1 preview, so nothing was submitted or saved. Applications open when Google sign-in is connected in Stage 2.';
+      result.textContent = 'Your application is reviewed by an admin. If approved, your 14-day trial starts immediately.';
       result.setAttribute('tabindex', '-1');
       result.focus();
     }

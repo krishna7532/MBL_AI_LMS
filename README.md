@@ -1,14 +1,14 @@
-# MBL-AI LMS — Stage 1 (EJS frontend, mock data)
+# MBL-AI LMS
 
-Express + EJS rebuild of the MBL-AI learner and admin screens, per `docs/MBL_AI_LMS_Consolidated_PRD_v0.6.md`.
-No React. No database. No authentication. Every screen renders from `services/mockData.js`
-through the single boundary `services/mockService.js`.
+Express + EJS app for the MBL-AI learner and admin screens, per `docs/MBL_AI_LMS_Consolidated_PRD_v0.6.md`.
+The app now includes Google OAuth sign-in via Passport for the public login flow; the rest of the product remains in the Stage 1 mock-data preview until database-backed entitlement and approval flows are added.
 
 ## Run it
 
 ```bash
 npm install
 cp .env.example .env
+# Add your Google OAuth credentials in .env
 npm run dev      # nodemon, auto-restart
 # or
 npm start
@@ -16,8 +16,7 @@ npm start
 
 Open http://localhost:3000 — it redirects to `/login`.
 
-Every page carries a **Stage 1 preview** banner with quick links to the learner and admin
-screens, since there is no real sign-in yet.
+The login page offers a Google sign-in button that redirects to Google and back to `/dashboard` after authentication.
 
 ## What's real vs. mock
 
