@@ -1,17 +1,13 @@
 'use strict';
 
 /**
- * auth.js — Stage 1 only. No authentication happens here.
- * Google OAuth and application submission are wired up in Stage 2 (PRD §7.1, §19.1).
+ * Client-side validation for the learner application form.
  */
 document.addEventListener('DOMContentLoaded', function () {
-
-
-  // ── Application form validation ─────────────────────────────────────────
   var form = document.getElementById('applicationForm');
   if (!form) return;
 
-  var phoneRe = /^\+?[\d\s-]{10,15}$/;
+  var phoneRe = /^\+?[\d\s-]+$/;
 
   function errorFor(input) {
     var group = input.closest('.form-group');
@@ -50,14 +46,20 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function validate(input) {
-    if (input.disabled) return true; // Google-supplied fields are placeholders in Stage 1
     clearError(input);
     if (input.type === 'checkbox') {
       if (input.required && !input.checked) { showError(input, input.id === 'consent1' ? 'You need to accept the Terms of Use to apply.' : 'You need to accept the Privacy Policy to apply.'); return false; }
       return true;
     }
     if (input.required && !input.value.trim()) { showError(input, 'Enter your phone number.'); return false; }
-    if (input.type === 'tel' && input.value && !phoneRe.test(input.value.trim())) { showError(input, 'Enter a valid phone number, 10 to 15 digits. A + prefix is fine.'); return false; }
+    if (input.type === 'tel' && input.value) {
+      var phone = input.value.trim();
+      var digitCount = phone.replace(/\D/g, '').length;
+      if (!phoneRe.test(phone) || digitCount < 10 || digitCount > 15) {
+        showError(input, 'Enter a valid phone number, 10 to 15 digits. A + prefix is fine.');
+        return false;
+      }
+    }
     return true;
   }
 
@@ -67,22 +69,13 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   form.addEventListener('submit', function (e) {
-    e.preventDefault(); // Stage 1: never submit anywhere
     var firstInvalid = null;
     form.querySelectorAll('input').forEach(function (input) {
       if (!validate(input) && !firstInvalid) firstInvalid = input;
     });
-    if (firstInvalid) { firstInvalid.focus(); return; }
-
-    var result = document.getElementById('applyResult');
-    var googleBtn=document.getElementById('googleSignIn');
-    form.hidden = true;
-    if (googleBtn) googleBtn.style.display = 'none';
-    if (result) {
-      result.hidden = false;
-      result.textContent = 'Your application is reviewed by an admin. If approved, your 14-day trial starts immediately.';
-      result.setAttribute('tabindex', '-1');
-      result.focus();
+    if (firstInvalid) {
+      e.preventDefault();
+      firstInvalid.focus();
     }
   });
 });

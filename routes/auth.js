@@ -8,7 +8,10 @@ const c = require('../controllers/authController');
 router.get('/', c.root);
 router.get('/login', c.login);
 router.get('/apply', c.apply);
-router.post('/apply', c.applyNotImplemented);
+router.post('/apply', (req, res, next) => {
+  if (req.isAuthenticated && req.isAuthenticated() && req.user && req.user.id) return next();
+  return res.redirect('/login');
+}, c.submitApplication);
 router.get('/pending', c.pending);
 router.get('/rejected', c.rejected);
 
@@ -24,7 +27,7 @@ router.get(
 router.get(
   '/auth/google/callback',
   passport.authenticate('google', {
-    successRedirect: '/dashboard',
+    successRedirect: '/apply',
     failureRedirect: '/login',
     failureFlash: false,
   })

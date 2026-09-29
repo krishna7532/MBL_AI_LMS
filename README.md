@@ -1,14 +1,14 @@
 # MBL-AI LMS
 
 Express + EJS app for the MBL-AI learner and admin screens, per `docs/MBL_AI_LMS_Consolidated_PRD_v0.6.md`.
-The app now includes Google OAuth sign-in via Passport for the public login flow; the rest of the product remains in the Stage 1 mock-data preview until database-backed entitlement and approval flows are added.
+Google OAuth identifies learners and stores their identity in PostgreSQL. Learners submit a phone number and both policy consents before their application enters the admin approval queue; other product screens remain a mock-data preview.
 
 ## Run it
 
 ```bash
 npm install
 cp .env.example .env
-# Add your Google OAuth credentials in .env
+# Add Google OAuth credentials and PostgreSQL connection details in .env
 npm run dev      # nodemon, auto-restart
 # or
 npm start
@@ -16,17 +16,17 @@ npm start
 
 Open http://localhost:3000 — it redirects to `/login`.
 
-The login page offers a Google sign-in button that redirects to Google and back to `/dashboard` after authentication.
+The login page offers a Google sign-in button that redirects to Google and then to `/apply` after authentication. Configure `DB_USER`, `DB_HOST`, `DB_NAME`, `DB_PASSWORD`, and `DB_PORT` for PostgreSQL.
 
 ## What's real vs. mock
 
-- Real: Express routing, EJS templates/partials, the CSS, the client-side interaction logic
+- Real: Express routing, EJS templates/partials, Google OAuth identity persistence, the transactional learner application and consent flow, the CSS, the client-side interaction logic
   (tab switching, MCQ/subjective drafting, the sprint and simulation players, leaderboard
   filters, admin table search and modals), the safe Markdown renderer for revision notes.
 - Mock: all data. `services/mockService.js` is the only file that touches `services/mockData.js`
   (a copy of the original `mockData.js`, extended with helpers for the pages the mock file
   didn't originally cover — course detail, results, monthly players, leaderboard filtering).
-- Not implemented (Stage 2, per the PRD): Google OAuth, sessions, server-side RBAC, PostgreSQL,
+- Not implemented (Stage 2, per the PRD): server-side RBAC, PostgreSQL-backed product data beyond learner applications,
   attempt persistence and scoring, AI evaluation, Razorpay, background jobs, transactional email,
   and the server-authoritative exam timer. Every place this matters says so in the UI or in a
   code comment (search for "STAGE 2").
@@ -50,7 +50,7 @@ public/                  css/, js/, images/ — served statically
 
 ## Known issues / incomplete by design
 
-- No form actually submits anywhere (apply, leaderboard join, admin approve/reject/publish,
+- No form actually submits anywhere except learner application submission (leaderboard join, admin approve/reject/publish,
   settings save). Every action either explains this inline or shows a "preview only" toast.
 - The exam timer is a per-browser `localStorage` countdown, not a server clock. Refreshing
   keeps the same countdown; "Reset preview attempt" (on the simulation instructions page)

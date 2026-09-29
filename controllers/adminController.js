@@ -5,11 +5,13 @@
  * buttons persist anything. Server-side RBAC and audit logging are Stage 2 (PRD §4, §12.4).
  */
 const mock = require('../services/mockService');
+const pool = require('../config/db');
 
 const base = { pageStyles: ['admin'], pageScripts: ['admin'] };
 
 exports.dashboard = (req, res) =>
-  res.render('admin/dashboard', { ...base, title: 'Admin dashboard', data: mock.getAdminOverview() });
+  res.render('admin/dashboard', { ...base, title: 'Admin dashboard', 
+    data: mock.getAdminOverview() });
 
 exports.users = (req, res) =>
   res.render('admin/users', { ...base, title: 'Users & approvals', data: mock.getAdminUsers() });
