@@ -14,6 +14,7 @@
 
 const d = require('./mockData');
 const renderMarkdown = require('./markdown');
+const pool = require('../config/db');
 
 const COURSE_IDS = ['C01', 'C02', 'C03', 'C04', 'C05'];
 
@@ -408,12 +409,47 @@ exports.getNotifications = () => d.notifications;
 
 // ── Admin ────────────────────────────────────────────────────────────────────
 
-exports.getAdminOverview = () => ({
-  stats: d.adminStats,
-  pending: d.allUsers.filter((u) => u.accountState === 'pending_approval'),
-  recentAudit: d.auditLogs.slice(0, 5),
-  releases: d.releases.filter((r) => r.status !== 'published').concat(d.releases.filter((r) => r.status === 'published').slice(0, 1)),
-});
+exports.getAdminOverview = async () => {
+  const result = await pool.query(`
+    SELECT *
+    FROM users u
+    WHERE u.account_state = 'pending_approval'
+      AND EXISTS (
+        SELECT 1
+        FROM consents c
+        WHERE c.user_id = u.id
+          AND c.consent_type = 'terms'
+          AND c.withdrawn_at IS NULL
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM consents c
+        WHERE c.user_id = u.id
+          AND c.consent_type = 'privacy'
+          AND c.withdrawn_at IS NULL
+      )
+    ORDER BY u.created_at ASC
+  `);
+
+  return {
+    stats: d.adminStats,
+    pending: result.rows.map((user) => ({
+      _id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone || '—',
+      createdAt: user.created_at,
+    })),
+    recentAudit: d.auditLogs.slice(0, 5),
+    releases: d.releases
+      .filter((r) => r.status !== 'published')
+      .concat(
+        d.releases
+          .filter((r) => r.status === 'published')
+          .slice(0, 1)
+      ),
+  };
+};
 
 exports.getAdminUsers = () => ({
   pending: d.allUsers.filter((u) => u.accountState === 'pending_approval'),
