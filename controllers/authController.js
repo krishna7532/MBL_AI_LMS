@@ -5,6 +5,9 @@
  */
 const auth = { layout: 'auth', pageStyles: ['auth'], pageScripts: ['auth'] };
 const pool = require('../config/db');
+const userQueries = require('../query/userQueries');
+const consentQueries = require('../query/consentQueries');
+const transactionQueries = require('../query/transactionQueries');
 
 exports.root = (req, res) => res.redirect(302, '/login');
 
@@ -52,15 +55,9 @@ exports.submitApplication = async (req, res, next) => {
   let client;
   try {
     client = await pool.connect();
-    await client.query('BEGIN');
+    await transactionQueries.begin(client);
 
-    const userResult = await client.query(
-      `SELECT id, account_state
-       FROM users
-       WHERE id = $1
-       FOR UPDATE`,
-      [req.user.id]
-    );
+    const userResult = await userQueries.getUserForApplication(client, req.user.id);
 
     if (!userResult.rows[0]) {
       const error = new Error('The authenticated user record could not be found.');
@@ -70,50 +67,32 @@ exports.submitApplication = async (req, res, next) => {
 
     const existingUser = userResult.rows[0];
     if (existingUser.account_state !== 'pending_approval') {
-      await client.query('ROLLBACK');
+      await transactionQueries.rollback(client);
       return res.redirect(existingUser.account_state === 'rejected' ? '/rejected' : '/dashboard');
     }
 
-    const consentResult = await client.query(
-      `SELECT consent_type
-       FROM consents
-       WHERE user_id = $1
-         AND consent_type IN ('terms', 'privacy')
-         AND withdrawn_at IS NULL`,
-      [existingUser.id]
-    );
+    const consentResult = await consentQueries.getActiveConsents(client, existingUser.id);
     const activeConsents = new Set(consentResult.rows.map((row) => row.consent_type));
 
     if (activeConsents.has('terms') && activeConsents.has('privacy')) {
-      await client.query('ROLLBACK');
+      await transactionQueries.rollback(client);
       return res.redirect('/pending');
     }
 
-    await client.query(
-      `UPDATE users
-       SET phone = $1,
-           account_state = 'pending_approval',
-           updated_at = NOW()
-       WHERE id = $2`,
-      [phone, existingUser.id]
-    );
+    await userQueries.updateUserApplication(client, phone, existingUser.id);
 
     for (const consentType of ['terms', 'privacy']) {
       if (!activeConsents.has(consentType)) {
-        await client.query(
-          `INSERT INTO consents (user_id, consent_type, policy_version, accepted_at)
-           VALUES ($1, $2, $3, NOW())`,
-          [existingUser.id, consentType, '1.0']
-        );
+        await consentQueries.insertConsent(client, existingUser.id, consentType, '1.0');
       }
     }
 
-    await client.query('COMMIT');
+    await transactionQueries.commit(client);
     return res.redirect('/pending');
   } catch (error) {
     if (client) {
       try {
-        await client.query('ROLLBACK');
+        await transactionQueries.rollback(client);
       } catch (rollbackError) {
         console.error('Failed to roll back learner application transaction:', rollbackError);
       }

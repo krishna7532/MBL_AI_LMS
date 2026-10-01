@@ -1,7 +1,7 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 require('dotenv').config();
-const pool = require('./db');
+const userQueries = require('../query/userQueries');
 
 function mapUser(row) {
   return {
@@ -36,17 +36,7 @@ passport.use(
           return done(new Error('Google did not provide the required subject, name, and email.'));
         }
 
-        const result = await pool.query(
-          `INSERT INTO users (google_subject, name, email)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (google_subject)
-           DO UPDATE SET
-             name = EXCLUDED.name,
-             email = EXCLUDED.email,
-             updated_at = NOW()
-           RETURNING id, google_subject, name, email, phone, role, account_state, created_at`,
-          [googleSubject, name, email]
-        );
+        const result = await userQueries.upsertGoogleUser(googleSubject, name, email);
         console.log(result);
         return done(null, mapUser(result.rows[0]));
       } catch (error) {
@@ -62,12 +52,7 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (userId, done) => {
   try {
-    const result = await pool.query(
-      `SELECT id, google_subject, name, email, phone, role, account_state, created_at
-       FROM users
-       WHERE id = $1`,
-      [userId]
-    );
+    const result = await userQueries.getUserById(userId);
     done(null, result.rows[0] ? mapUser(result.rows[0]) : null);
   } catch (error) {
     done(error);

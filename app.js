@@ -16,7 +16,7 @@ const passport = require('./config/passport');
 const authRoutes = require('./routes/auth');
 require('dotenv').config();
 
-const pool=require('./config/db');
+const systemQueries = require('./query/systemQueries');
 
 const app = express();
 
@@ -41,7 +41,7 @@ app.use(session(sessionOption));
 app.use(express.json());
 app.get("/api/test-db", async (req, res) => {
     try {
-        const result = await pool.query("SELECT NOW()");
+        const result = await systemQueries.getDatabaseTime();
 
         res.json({
             success: true,
