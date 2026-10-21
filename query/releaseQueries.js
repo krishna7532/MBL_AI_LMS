@@ -21,7 +21,7 @@ async function getLatestApprovedBlueprintId(client, type) {
   return r.rows[0].id;
 }
 
-async function insertContentRelease(client, manifest, archivePath) {
+async function insertContentRelease(client, manifest, archiveKey) {
   const academicYearId = await getAcademicYearId(client, manifest.academic_year_id);
   const r = await client.query(
     `INSERT INTO content_releases
@@ -38,18 +38,18 @@ async function insertContentRelease(client, manifest, archivePath) {
       manifest.month_number || null,
       manifest.version,
       manifest.content_checksum || null,
-      JSON.stringify({ ...manifest, _archive_path: archivePath }),
+      JSON.stringify({ ...manifest, _archive_key: archiveKey }),
     ]
   );
   return r.rows[0].id;
 }
 
-async function insertRevisionNote(client, releaseId, courseCode, markdown, version) {
+async function insertRevisionNote(client, releaseId, courseCode, markdown, version, releaseCode) {
   const courseId = await getCourseId(client, courseCode);
   await client.query(
     `INSERT INTO revision_notes (stable_id, version, release_id, course_id, markdown)
      VALUES ($1,$2,$3,$4,$5)`,
-    [`${courseCode}-notes`, version, releaseId, courseId, markdown]
+    [`${releaseCode}-${courseCode}-notes`, version, releaseId, courseId, markdown]
   );
 }
 

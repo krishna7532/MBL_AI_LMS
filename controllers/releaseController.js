@@ -1,7 +1,7 @@
 'use strict';
 
 const { parseReleasePackage, validateRelease } = require('../services/releaseImporter');
-const { saveReleaseArchive } = require('../services/releaseStorage');
+const { saveReleaseArchive, deleteReleaseArchive } = require('../services/releaseStorage');
 const pool = require('../config/db');
 const mock = require('../services/mockService');
 const q = require('../query/releaseQueries');
@@ -59,24 +59,25 @@ exports.importRelease = async (req, res, next) => {
 
   let client;
   let transactionOpen = false;
-  let archivePath;
+  let commitAttempted = false;
+  let archiveKey;
   try {
-    client = await pool.connect();
-    await client.query('BEGIN');
-    transactionOpen = true;
-
-    archivePath = saveReleaseArchive(
+    archiveKey = await saveReleaseArchive(
       req.file.buffer,
       parsed.manifest.release_id,
       parsed.manifest.version,
       req.file.originalname
     );
 
-    const releaseId = await q.insertContentRelease(client, parsed.manifest, archivePath);
+    client = await pool.connect();
+    await client.query('BEGIN');
+    transactionOpen = true;
+
+    const releaseId = await q.insertContentRelease(client, parsed.manifest, archiveKey);
 
     // 1. Notes
     for (const note of parsed.notes) {
-      await q.insertRevisionNote(client, releaseId, note.courseCode, note.markdown, parsed.manifest.version);
+      await q.insertRevisionNote(client, releaseId, note.courseCode, note.markdown, parsed.manifest.version,parsed.manifest.release_id);
     }
 
     // 2. Passages (if any) — insert before questions that reference them
@@ -106,17 +107,28 @@ exports.importRelease = async (req, res, next) => {
       );
     }
 
+    commitAttempted = true;
     await client.query('COMMIT');
     transactionOpen = false;
     return renderReleasesPage(res, {
       success: `Release ${parsed.manifest.release_id} imported with status "needs_review".`,
     });
   } catch (err) {
+    let safeToDeleteArchive = !transactionOpen && !commitAttempted;
     if (client && transactionOpen) {
       try {
         await client.query('ROLLBACK');
+        transactionOpen = false;
+        safeToDeleteArchive = !commitAttempted;
       } catch (rollbackError) {
         console.error('Failed to roll back release import:', rollbackError);
+      }
+    }
+    if (archiveKey && safeToDeleteArchive) {
+      try {
+        await deleteReleaseArchive(archiveKey);
+      } catch (cleanupError) {
+        console.error('Failed to clean up uploaded release archive:', cleanupError);
       }
     }
     console.error(err);

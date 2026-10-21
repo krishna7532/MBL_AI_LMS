@@ -1,18 +1,46 @@
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
+const { randomUUID } = require('crypto');
+const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 
-// IMPORTANT: outside /public — this folder must never be served directly by Express
-const RELEASES_DIR = path.join(__dirname, '..', 'storage', 'releases');
-fs.mkdirSync(RELEASES_DIR, { recursive: true });
-
-function saveReleaseArchive(buffer, releaseId, version, originalFilename) {
-  const ext = originalFilename.toLowerCase().endsWith('.json') ? 'json' : 'zip';
-  const filename = `${releaseId}-v${version}.${ext}`;
-  const filePath = path.join(RELEASES_DIR, filename);
-  fs.writeFileSync(filePath, buffer);
-  return filePath; // stored in content_releases.archive_path
+function getS3Config() {
+  const region = process.env.AWS_REGION;
+  const bucket = process.env.AWS_S3_BUCKET_NAME;
+  if (!region) throw new Error('AWS_REGION is required');
+  if (!bucket) throw new Error('AWS_S3_BUCKET_NAME is required');
+  return { region, bucket };
 }
 
-module.exports = { saveReleaseArchive };
+async function saveReleaseArchive(buffer, releaseId, version, originalFilename) {
+  const { region, bucket } = getS3Config();
+  const s3 = new S3Client({ region });
+
+  const extension = originalFilename.toLowerCase().endsWith('.json') ? 'json' : 'zip';
+  const key = `releases/${randomUUID()}.${extension}`;
+
+  await s3.send(new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    Body: buffer,
+    ContentLength: buffer.length,
+    ContentType: extension === 'json' ? 'application/json' : 'application/zip',
+    Metadata: {
+      'release-id': releaseId,
+      version: String(version),
+    },
+  }));
+
+  return key;
+}
+
+async function deleteReleaseArchive(key) {
+  const { region, bucket } = getS3Config();
+  const s3 = new S3Client({ region });
+
+  await s3.send(new DeleteObjectCommand({
+    Bucket: bucket,
+    Key: key,
+  }));
+}
+
+module.exports = { saveReleaseArchive, deleteReleaseArchive };
