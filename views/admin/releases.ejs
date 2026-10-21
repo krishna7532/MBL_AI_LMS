@@ -6,15 +6,26 @@
   </div>
 </div>
 
-<section class="card mb-4" aria-labelledby="uploadHeading">
+<% if (error) { %>
+  <div class="alert alert-danger" role="alert"><%= error %></div>
+<% } %>
+<% if (success) { %>
+  <div class="alert alert-success" role="status"><%= success %></div>
+<% } %>
+
+<form method="post" action="/admin/releases/import" enctype="multipart/form-data">
+    <section class="card mb-4" aria-labelledby="uploadHeading">
   <div class="card-body participation">
     <div>
       <h2 id="uploadHeading" class="section-title">Import a release package</h2>
       <p class="text-secondary text-small">A versioned ZIP containing <code>manifest.json</code>, <code>notes/*.md</code>, <code>assessments/*.json</code> and <code>checksums.json</code>. No videos or raw source documents.</p>
+      <input type="file" name="releasePackage" accept=".zip,.json" required>
+      <button type="submit" class="btn btn-primary">Upload package</button>
     </div>
-    <button type="button" class="btn btn-primary" disabled title="Available in Stage 2">Upload package (Stage 2)</button>
   </div>
-</section>
+</section>  
+</form>
+
 
 <% releases.forEach(function (r) {
      const weekly = r.releaseType === 'weekly';

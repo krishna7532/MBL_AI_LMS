@@ -11,6 +11,8 @@ const mockContext = require('./middleware/mockContext');
 const notFound = require('./middleware/notFound');
 const errorHandler = require('./middleware/errorHandler');
 
+const multer = require('multer');
+
 const session=require('express-session');
 const passport = require('./config/passport');
 const authRoutes = require('./routes/auth');
@@ -39,6 +41,14 @@ app.use(session(sessionOption));
 
 //for database connection
 app.use(express.json());
+
+//for multer use
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).render('admin/releases', { error: `Upload error: ${err.message}`, success: null });
+  }
+  next(err);
+});
 app.get("/api/test-db", async (req, res) => {
     try {
         const result = await systemQueries.getDatabaseTime();

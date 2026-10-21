@@ -26,11 +26,22 @@ router.get(
 
 router.get(
   '/auth/google/callback',
-  passport.authenticate('google', {
-    successRedirect: '/apply',
-    failureRedirect: '/login',
-    failureFlash: false,
-  })
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  (req, res) => {
+    const accountState = req.user.accountState;
+
+    if(accountState==='pending_approval'){
+      return res.redirect('/pending');
+    }
+    if(accountState==='rejected' || accountState==='suspended'){
+      return res.redirect('/rejected');
+    }
+   if(accountState==='trial_active' || accountState==='paid_active'){
+    return res.redirect('/dashboard');
+   }
+    // Keep the current success destination:
+    return res.redirect('/apply');
+  }
 );
 
 router.get('/logout', (req, res, next) => {

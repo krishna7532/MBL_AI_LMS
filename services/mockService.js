@@ -411,7 +411,6 @@ exports.getNotifications = () => d.notifications;
 
 exports.getAdminOverview = async () => {
   const result = await adminQueries.getPendingApprovals();
-
   return {
     stats: d.adminStats,
     pending: result.rows.map((user) => ({
@@ -432,10 +431,19 @@ exports.getAdminOverview = async () => {
   };
 };
 
-exports.getAdminUsers = () => ({
-  pending: d.allUsers.filter((u) => u.accountState === 'pending_approval'),
-  users: d.allUsers.filter((u) => u.role !== 'admin'),
-});
+exports.getAdminUsers = async() => {
+  const result = await adminQueries.getPendingApprovals();
+  return{
+    pending: result.rows.map((user) => ({
+      _id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone || '—',
+      createdAt: user.created_at,
+    })),
+    users: d.allUsers.filter((u) => u.role !== 'admin'),
+  }
+};
 
 exports.getContentItems = () => d.contentItems;
 exports.getAssessmentItems = () => d.assessmentItems;

@@ -6,6 +6,8 @@
  */
 const mock = require('../services/mockService');
 const adminQueries = require('../query/adminQueries');
+const pool=require('../config/db');
+const transactionQueries=require('../query/transactionQueries');
 
 const base = { pageStyles: ['admin'], pageScripts: ['admin'] };
 
@@ -29,8 +31,73 @@ exports.dashboard = async (req, res, next) => {
   }
 };
 
-exports.users = (req, res) =>
-  res.render('admin/users', { ...base, title: 'Users & approvals', data: mock.getAdminUsers() });
+exports.users =async (req, res) =>{
+  const data = await mock.getAdminUsers();
+  res.render('admin/users', { ...base, title: 'Users & approvals', data });
+};
+
+exports.decision=async(req,res,next)=>{
+  const userId = req.params.userId;
+  const decision = req.body && req.body.decision;
+  const submittedReason = req.body && req.body.reason;
+  const reason = typeof submittedReason === 'string' ? submittedReason.trim() : '';
+
+  let client;
+  let transactionOpen = false;
+  try{
+    if (decision !== 'approved' && decision !== 'rejected') {
+      const error = new Error('Choose either approve or reject for this application.');
+      error.status = 400;
+      throw error;
+    }
+
+    let adminId = req.user && req.user.id;
+    if (!adminId) {
+      const adminResult = await adminQueries.getAdmin();
+      adminId = adminResult.rows[0] && adminResult.rows[0].id;
+    }
+    if (!adminId) {
+      const error = new Error('No admin account is available to record this decision.');
+      error.status = 500;
+      throw error;
+    }
+
+    client=await pool.connect();
+    await transactionQueries.begin(client);
+    transactionOpen = true;
+
+    const result = await adminQueries.decidePendingUser(
+      client,
+      userId,
+      adminId,
+      decision,
+      reason
+    );
+
+    await transactionQueries.commit(client);
+    transactionOpen = false;
+
+    return res.json({
+      success: true,
+      decision,
+      message: decision === 'approved'
+        ? 'Applicant approved and 14-day trial started.'
+        : 'Application rejected.',
+      trial: result.trial,
+    });
+  }catch(error){
+    if (client && transactionOpen) {
+      try {
+        await transactionQueries.rollback(client);
+      } catch (rollbackError) {
+        console.error('Failed to roll back applicant decision transaction:', rollbackError);
+      }
+    }
+    return next(error);
+  } finally {
+    if (client) client.release();
+  }
+};
 
 exports.content = (req, res) =>
   res.render('admin/content', { ...base, title: 'Content management', items: mock.getContentItems() });

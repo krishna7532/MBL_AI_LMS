@@ -48,3 +48,69 @@ exports.getPendingApprovals = async () =>
        )
      ORDER BY u.created_at ASC`
   );
+  exports.getAdmin = async () => {
+    return pool.query(
+      `SELECT * FROM users WHERE role = 'admin_publisher'`
+    );
+  };
+
+exports.decidePendingUser = async (client, userId, adminId, decision, reason) => {
+  const userResult = await client.query(
+    `SELECT id, account_state
+     FROM users
+     WHERE id = $1
+     FOR UPDATE`,
+    [userId]
+  );
+
+  const user = userResult.rows[0];
+  if (!user) {
+    const error = new Error('The applicant could not be found.');
+    error.status = 404;
+    throw error;
+  }
+  if (user.account_state !== 'pending_approval') {
+    const error = new Error('The applicant is no longer awaiting approval.');
+    error.status = 409;
+    throw error;
+  }
+
+  const nextAccountState = decision === 'approved' ? 'trial_active' : 'rejected';
+  if (decision === 'approved') {
+    await client.query(
+      `UPDATE users
+       SET account_state = $1,
+           role = 'approved_trial_learner',
+           updated_at = NOW()
+       WHERE id = $2`,
+      [nextAccountState, userId]
+    );
+  } else {
+    await client.query(
+      `UPDATE users
+       SET account_state = $1,
+           updated_at = NOW()
+       WHERE id = $2`,
+      [nextAccountState, userId]
+    );
+  }
+
+  let trial = null;
+  if (decision === 'approved') {
+    const trialResult = await client.query(
+      `INSERT INTO trials (user_id, starts_at, ends_at, state)
+       VALUES ($1, NOW(), NOW() + INTERVAL '14 days', 'active')
+       RETURNING starts_at, ends_at`,
+      [userId]
+    );
+    trial = trialResult.rows[0];
+  }
+
+  await client.query(
+    `INSERT INTO access_approvals (user_id, admin_id, decision, reason)
+     VALUES ($1, $2, $3, $4)`,
+    [userId, adminId, decision, reason || null]
+  );
+
+  return { status: 'ok', trial };
+};
