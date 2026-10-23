@@ -1,135 +1,201 @@
 'use strict';
 
-async function getAcademicYearId(client, label) {
-  const r = await client.query(`SELECT id FROM academic_years WHERE label = $1`, [label]);
-  if (!r.rows[0]) throw new Error(`Academic year "${label}" not found. Seed it first.`);
-  return r.rows[0].id;
+async function getAcademicYearId(prisma, label) {
+  const academicYear = await prisma.academic_years.findUnique({
+    where: { label },
+    select: { id: true },
+  });
+  if (!academicYear) throw new Error(`Academic year "${label}" not found. Seed it first.`);
+  return academicYear.id;
 }
 
-async function getCourseId(client, code) {
-  const r = await client.query(`SELECT id FROM courses WHERE code = $1`, [code]);
-  if (!r.rows[0]) throw new Error(`Course "${code}" not found. Seed it first.`);
-  return r.rows[0].id;
+async function getCourseId(prisma, code) {
+  const course = await prisma.courses.findUnique({
+    where: { code },
+    select: { id: true },
+  });
+  if (!course) throw new Error(`Course "${code}" not found. Seed it first.`);
+  return course.id;
 }
 
-async function getLatestApprovedBlueprintId(client, type) {
-  const r = await client.query(
-    `SELECT id FROM assessment_blueprints WHERE type = $1 AND status = 'approved' ORDER BY version DESC LIMIT 1`,
-    [type]
-  );
-  if (!r.rows[0]) throw new Error(`No approved "${type}" blueprint exists. Seed one first.`);
-  return r.rows[0].id;
+async function getLatestApprovedBlueprintId(prisma, type) {
+  const blueprint = await prisma.assessment_blueprints.findFirst({
+    where: { type, status: 'approved' },
+    orderBy: { version: 'desc' },
+    select: { id: true },
+  });
+  if (!blueprint) throw new Error(`No approved "${type}" blueprint exists. Seed one first.`);
+  return blueprint.id;
 }
 
-async function insertContentRelease(client, manifest, archiveKey) {
-  const academicYearId = await getAcademicYearId(client, manifest.academic_year_id);
-  const r = await client.query(
-    `INSERT INTO content_releases
-       (release_id, release_type, academic_year_id, program_year, week_number, month_number,
-        version, content_checksum, status, notes_approval_status, assessment_approval_status, manifest)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'needs_review','draft','draft',$9)
-     RETURNING id`,
-    [
-      manifest.release_id,
-      manifest.release_type,
-      academicYearId,
-      manifest.program_year,
-      manifest.week_number || null,
-      manifest.month_number || null,
-      manifest.version,
-      manifest.content_checksum || null,
-      JSON.stringify({ ...manifest, _archive_key: archiveKey }),
-    ]
-  );
-  return r.rows[0].id;
+async function insertContentRelease(prisma, manifest, archiveKey) {
+  const academicYearId = await getAcademicYearId(prisma, manifest.academic_year_id);
+  const release = await prisma.content_releases.create({
+    data: {
+      release_id: manifest.release_id,
+      release_type: manifest.release_type,
+      academic_year_id: academicYearId,
+      program_year: manifest.program_year,
+      week_number: manifest.week_number || null,
+      month_number: manifest.month_number || null,
+      version: manifest.version,
+      content_checksum: manifest.content_checksum || null,
+      status: 'needs_review',
+      notes_approval_status: 'draft',
+      assessment_approval_status: 'draft',
+      manifest: { ...manifest, _archive_key: archiveKey },
+    },
+    select: { id: true },
+  });
+  return release.id;
 }
 
-async function insertRevisionNote(client, releaseId, courseCode, markdown, version, releaseCode) {
-  const courseId = await getCourseId(client, courseCode);
-  await client.query(
-    `INSERT INTO revision_notes (stable_id, version, release_id, course_id, markdown)
-     VALUES ($1,$2,$3,$4,$5)`,
-    [`${releaseCode}-${courseCode}-notes`, version, releaseId, courseId, markdown]
-  );
+async function insertRevisionNote(prisma, releaseId, courseCode, markdown, version, releaseCode) {
+  const courseId = await getCourseId(prisma, courseCode);
+  await prisma.revision_notes.create({
+    data: {
+      stable_id: `${releaseCode}-${courseCode}-notes`,
+      version,
+      release_id: releaseId,
+      course_id: courseId,
+      markdown,
+    },
+  });
 }
 
-// Looks up a passage by stable_id if the question references one; returns null if none given
-async function getPassageId(client, stableId, version) {
+async function getPassageId(prisma, stableId, version) {
   if (!stableId) return null;
-  const r = await client.query(
-    `SELECT id FROM passages WHERE stable_id = $1 AND version = $2`,
-    [stableId, version]
-  );
-  if (!r.rows[0]) throw new Error(`Passage "${stableId}" v${version} not found — import passages before questions that reference them.`);
-  return r.rows[0].id;
+
+  const passage = await prisma.passages.findUnique({
+    where: { stable_id_version: { stable_id: stableId, version } },
+    select: { id: true },
+  });
+  if (!passage) {
+    throw new Error(
+      `Passage "${stableId}" v${version} not found — import passages before questions that reference them.`
+    );
+  }
+  return passage.id;
 }
 
-async function insertPassage(client, courseCode, stableId, text, version, sourceLineage) {
-  const courseId = await getCourseId(client, courseCode);
-  const r = await client.query(
-    `INSERT INTO passages (stable_id, version, course_id, passage_text, source_lineage)
-     VALUES ($1,$2,$3,$4,$5)
-     ON CONFLICT (stable_id, version) DO UPDATE SET passage_text = EXCLUDED.passage_text
-     RETURNING id`,
-    [stableId, version, courseId, text, JSON.stringify(sourceLineage || [])]
-  );
-  return r.rows[0].id;
+async function insertPassage(prisma, courseCode, stableId, text, version, sourceLineage) {
+  const courseId = await getCourseId(prisma, courseCode);
+  const passage = await prisma.passages.upsert({
+    where: { stable_id_version: { stable_id: stableId, version } },
+    update: { passage_text: text },
+    create: {
+      stable_id: stableId,
+      version,
+      course_id: courseId,
+      passage_text: text,
+      source_lineage: sourceLineage || [],
+    },
+    select: { id: true },
+  });
+  return passage.id;
 }
 
-// q is a question object matching the PRD §9.6 field names exactly
-async function insertQuestion(client, q) {
-  const courseId = await getCourseId(client, q.course_id);
-  const passageId = await getPassageId(client, q.shared_passage_id, q.version || 1);
-
-  const r = await client.query(
-    `INSERT INTO questions
-       (question_id, version, course_id, concept_ids, exam_role, question_type, response_format,
-        stem_form, shared_passage_id, question_number, prompt_markdown, options, correct_option_ids,
-        explanation_markdown, directive_verbs, marks, sub_issues, required_authority, required_output,
-        assumptions_policy, rubric, expected_answer_points, origin, source_refs, pattern_confidence,
-        approval_status, learner_badge)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
-     RETURNING id`,
-    [
-      q.question_id, q.version || 1, courseId, JSON.stringify(q.concept_ids || []),
-      q.exam_role, q.question_type, q.response_format, q.stem_form, passageId, q.question_number || null,
-      q.prompt_markdown, JSON.stringify(q.options || []), JSON.stringify(q.correct_option_ids || []),
-      q.explanation_markdown || null, JSON.stringify(q.directive_verbs || []), q.marks,
-      JSON.stringify(q.sub_issues || []), JSON.stringify(q.required_authority || []),
-      JSON.stringify(q.required_output || []), q.assumptions_policy || null,
-      JSON.stringify(q.rubric || []), JSON.stringify(q.expected_answer_points || []),
-      q.origin, JSON.stringify(q.source_refs || []), q.pattern_confidence,
-      'needs_review', q.learner_badge || null,
-    ]
+async function insertQuestion(prisma, question) {
+  const courseId = await getCourseId(prisma, question.course_id);
+  const passageId = await getPassageId(
+    prisma,
+    question.shared_passage_id,
+    question.version || 1
   );
-  return r.rows[0].id;
+
+  const inserted = await prisma.questions.create({
+    data: {
+      question_id: question.question_id,
+      version: question.version || 1,
+      course_id: courseId,
+      concept_ids: question.concept_ids || [],
+      exam_role: question.exam_role,
+      question_type: question.question_type,
+      response_format: question.response_format,
+      stem_form: question.stem_form,
+      shared_passage_id: passageId,
+      question_number: question.question_number || null,
+      prompt_markdown: question.prompt_markdown,
+      options: question.options || [],
+      correct_option_ids: question.correct_option_ids || [],
+      explanation_markdown: question.explanation_markdown || null,
+      directive_verbs: question.directive_verbs || [],
+      marks: question.marks,
+      sub_issues: question.sub_issues || [],
+      required_authority: question.required_authority || [],
+      required_output: question.required_output || [],
+      assumptions_policy: question.assumptions_policy || null,
+      rubric: question.rubric || [],
+      expected_answer_points: question.expected_answer_points || [],
+      origin: question.origin,
+      source_refs: question.source_refs || [],
+      pattern_confidence: question.pattern_confidence,
+      approval_status: 'needs_review',
+      learner_badge: question.learner_badge || null,
+    },
+    select: { id: true },
+  });
+  return inserted.id;
 }
 
-async function insertAssessment(client, releaseId, courseCode, academicYearLabel, blueprintType) {
-  const courseId = await getCourseId(client, courseCode);
-  const academicYearId = await getAcademicYearId(client, academicYearLabel);
+async function insertAssessment(
+  prisma,
+  releaseId,
+  courseCode,
+  academicYearLabel,
+  blueprintType
+) {
+  const courseId = await getCourseId(prisma, courseCode);
+  const academicYearId = await getAcademicYearId(prisma, academicYearLabel);
   const assessmentType = blueprintType === 'practice_bank' ? 'practice' : blueprintType;
-  const blueprintId = await getLatestApprovedBlueprintId(client, assessmentType);
+  const blueprintId = await getLatestApprovedBlueprintId(prisma, assessmentType);
 
-  const r = await client.query(
-    `INSERT INTO assessments (assessment_id, release_id, course_id, academic_year_id, blueprint_id, type, title, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,'draft')
-     RETURNING id`,
-    [`${releaseId}-${courseCode}`, releaseId, courseId, academicYearId, blueprintId, assessmentType, `${courseCode} assessment`]
-  );
-  return r.rows[0].id;
+  const assessment = await prisma.assessments.create({
+    data: {
+      assessment_id: `${releaseId}-${courseCode}`,
+      release_id: releaseId,
+      course_id: courseId,
+      academic_year_id: academicYearId,
+      blueprint_id: blueprintId,
+      type: assessmentType,
+      title: `${courseCode} assessment`,
+      status: 'draft',
+    },
+    select: { id: true },
+  });
+  return assessment.id;
 }
 
-async function insertAssessmentItem(client, assessmentId, section, questionDbId, passageDbId, order, compulsory) {
-  await client.query(
-    `INSERT INTO assessment_items (assessment_id, section, question_id, passage_id, item_order, compulsory)
-     VALUES ($1,$2,$3,$4,$5,$6)`,
-    [assessmentId, section, questionDbId, passageDbId, order, compulsory]
-  );
+async function insertAssessmentItem(
+  prisma,
+  assessmentId,
+  section,
+  questionDbId,
+  passageDbId,
+  order,
+  compulsory
+) {
+  await prisma.assessment_items.create({
+    data: {
+      assessment_id: assessmentId,
+      section,
+      question_id: questionDbId,
+      passage_id: passageDbId,
+      item_order: order,
+      compulsory,
+    },
+  });
 }
 
 module.exports = {
-  getCourseId, getAcademicYearId, getLatestApprovedBlueprintId, getPassageId,
-  insertContentRelease, insertRevisionNote, insertPassage,
-  insertQuestion, insertAssessment, insertAssessmentItem,
+  getCourseId,
+  getAcademicYearId,
+  getLatestApprovedBlueprintId,
+  getPassageId,
+  insertContentRelease,
+  insertRevisionNote,
+  insertPassage,
+  insertQuestion,
+  insertAssessment,
+  insertAssessmentItem,
 };

@@ -1,18 +1,21 @@
 'use strict';
 
-exports.getActiveConsents = async (client, userId) =>
-  client.query(
-    `SELECT consent_type
-     FROM consents
-     WHERE user_id = $1
-       AND consent_type IN ('terms', 'privacy')
-       AND withdrawn_at IS NULL`,
-    [userId]
-  );
+exports.getActiveConsents = async (prisma, userId) =>
+  prisma.consents.findMany({
+    where: {
+      user_id: userId,
+      consent_type: { in: ['terms', 'privacy'] },
+      withdrawn_at: null,
+    },
+    select: { consent_type: true },
+  });
 
-exports.insertConsent = async (client, userId, consentType, policyVersion) =>
-  client.query(
-    `INSERT INTO consents (user_id, consent_type, policy_version, accepted_at)
-     VALUES ($1, $2, $3, NOW())`,
-    [userId, consentType, policyVersion]
-  );
+exports.insertConsent = async (prisma, userId, consentType, policyVersion) =>
+  prisma.consents.create({
+    data: {
+      user_id: userId,
+      consent_type: consentType,
+      policy_version: policyVersion,
+      accepted_at: new Date(),
+    },
+  });

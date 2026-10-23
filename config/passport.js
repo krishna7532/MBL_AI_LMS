@@ -1,6 +1,7 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 require('dotenv').config();
+const prisma = require('./db');
 const userQueries = require('../query/userQueries');
 
 function mapUser(row) {
@@ -36,9 +37,8 @@ passport.use(
           return done(new Error('Google did not provide the required subject, name, and email.'));
         }
 
-        const result = await userQueries.upsertGoogleUser(googleSubject, name, email);
-        console.log(result);
-        return done(null, mapUser(result.rows[0]));
+        const result = await userQueries.upsertGoogleUser(prisma, googleSubject, name, email);
+        return done(null, mapUser(result));
       } catch (error) {
         return done(error);
       }
@@ -52,8 +52,8 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (userId, done) => {
   try {
-    const result = await userQueries.getUserById(userId);
-    done(null, result.rows[0] ? mapUser(result.rows[0]) : null);
+    const result = await userQueries.getUserById(prisma, userId);
+    done(null, result ? mapUser(result) : null);
   } catch (error) {
     done(error);
   }

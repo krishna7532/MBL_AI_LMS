@@ -410,10 +410,10 @@ exports.getNotifications = () => d.notifications;
 // ── Admin ────────────────────────────────────────────────────────────────────
 
 exports.getAdminOverview = async () => {
-  const result = await adminQueries.getPendingApprovals();
+  const users = await adminQueries.getPendingApprovals();
   return {
     stats: d.adminStats,
-    pending: result.rows.map((user) => ({
+    pending: users.map((user) => ({
       _id: user.id,
       name: user.name,
       email: user.email,
@@ -432,17 +432,42 @@ exports.getAdminOverview = async () => {
 };
 
 exports.getAdminUsers = async() => {
-  const result = await adminQueries.getPendingApprovals();
-  return{
-    pending: result.rows.map((user) => ({
-      _id: user.id,
+  const [pendingUsers, allUsers] = await Promise.all([
+    adminQueries.getPendingApprovals(),
+    adminQueries.getAllUser(),
+  ]);
+
+  return {
+    pending: pendingUsers.map((user) => ({
+      id: user.id,
       name: user.name,
       email: user.email,
       phone: user.phone || '—',
       createdAt: user.created_at,
     })),
-    users: d.allUsers.filter((u) => u.role !== 'admin'),
-  }
+    users: allUsers.map((user) => {
+      const trial = user.trials[0];
+      const subscription = user.subscriptions[0];
+
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '—',
+        role: user.role,
+        accountState: user.account_state,
+        leaderboardAlias: user.leaderboard_profiles?.handle || null,
+        leaderboardOptIn: user.leaderboard_profiles?.status === 'opted_in',
+        trial: trial
+          ? { startDate: trial.starts_at, endDate: trial.ends_at }
+          : null,
+        subscription: subscription
+          ? { plan: subscription.plans.code, endDate: subscription.ends_at }
+          : null,
+        createdAt: user.created_at,
+      };
+    }),
+  };
 };
 
 exports.getContentItems = () => d.contentItems;

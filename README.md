@@ -8,7 +8,8 @@ Google OAuth identifies learners and stores their identity in PostgreSQL. Learne
 ```bash
 npm install
 cp .env.example .env
-# Add Google OAuth credentials and PostgreSQL connection details in .env
+# Add Google OAuth credentials and PostgreSQL connection details, then generate Prisma Client.
+npm run prisma:generate
 npm run dev      # nodemon, auto-restart
 # or
 npm start
@@ -16,7 +17,7 @@ npm start
 
 Open http://localhost:3000 — it redirects to `/login`.
 
-The login page offers a Google sign-in button that redirects to Google and then to `/apply` after authentication. Configure `DB_USER`, `DB_HOST`, `DB_NAME`, `DB_PASSWORD`, and `DB_PORT` for PostgreSQL.
+The login page offers a Google sign-in button that redirects to Google and then to `/apply` after authentication. Configure `DATABASE_URL` for PostgreSQL. Existing installations can continue to use `DB_USER`, `DB_HOST`, `DB_NAME`, `DB_PASSWORD`, and `DB_PORT`; the application and Prisma commands convert them to a connection URL without logging credentials.
 
 ## What's real vs. mock
 
@@ -35,8 +36,10 @@ The login page offers a Google sign-in button that redirects to Google and then 
 
 ```
 app.js, server.js        Express app and entry point
-config/                  env config + shared copy constants (PRD wording)
+config/                  env config, centralized Prisma Client + shared copy constants
 controllers/, routes/    thin controllers, one per area (auth / learner / admin)
+prisma/schema.prisma     introspected PostgreSQL schema and Prisma Client generator
+scripts/prisma.js        Prisma CLI wrapper for DATABASE_URL and legacy DB_* settings
 services/
   mockData.js            original mock dataset (kept verbatim, minus module renaming)
   mockService.js         the ONLY module controllers call for data; swap this for real
@@ -47,6 +50,40 @@ middleware/
 views/                   EJS templates (layouts/, partials/, auth/, learner/, admin/, errors/)
 public/                  css/, js/, images/ — served statically
 ```
+
+## Prisma and PostgreSQL
+
+The project uses Prisma 6.19.0 with the PostgreSQL datasource and the `prisma-client-js` generator. The schema in `prisma/schema.prisma` was introspected from the existing database; it represents all 28 current public tables, enums, UUIDs, JSON/array/network fields, indexes, unique constraints, and foreign-key relationships. No user-defined public triggers were found. The four existing database check constraints (`academic_year_dates_valid`, `plan_price_valid`, `subscription_dates_valid`, and `trial_dates_valid`) are not expressible in Prisma Schema Language, so they are preserved in the checked-in baseline SQL.
+
+Set `DATABASE_URL` in `.env`, for example:
+
+```dotenv
+DATABASE_URL=postgresql://user:password@localhost:5432/mbl-ai?schema=public
+```
+
+URL-encode reserved characters in the username and password. For an existing `.env` using `DB_USER`, `DB_HOST`, `DB_NAME`, `DB_PASSWORD`, and `DB_PORT`, these values remain supported without a credential change; `config/databaseUrl.js` builds the URL at runtime. `.env` is ignored by Git; `.env.example` contains placeholders only.
+
+Useful commands:
+
+```bash
+npm run prisma:validate
+npm run prisma:generate
+npm run prisma:db:pull
+npm run prisma:migrate:status
+npm run prisma:migrate:diff -- --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script
+npm run prisma:migrate:dev
+npm run prisma:migrate:deploy
+```
+
+Prisma Client is centralized in `config/db.js`, connected before the HTTP server starts, and disconnected during graceful shutdown. Transactions use Prisma `$transaction`; the application-application lookup retains its `FOR UPDATE` lock using a parameterized `$queryRaw`.
+
+### Existing database and migrations
+
+The current database was pre-existing and contains its own `schema_migrations` table. It was not previously managed by Prisma Migrate.
+
+The checked-in `prisma/migrations/20261021110000_baseline_existing_database/migration.sql` is a generated baseline, including the four existing check constraints. It creates the current schema from empty; it is not safe to execute against the existing database. The live database was verified against the Prisma schema with an empty drift diff, then baselined using `migrate resolve --applied 20261021110000_baseline_existing_database`. This added Prisma migration-history bookkeeping only; it did not execute baseline DDL or change application records. The existing application `schema_migrations` table is separate from Prisma's `_prisma_migrations` history; both are preserved.
+
+Create and review development migrations against a disposable/local database. Back up production and review generated SQL before applying changes with `npm run prisma:migrate:deploy`. Do not run `migrate reset` or `db push` against a database containing data. No schema DDL was applied to the existing database as part of this change.
 
 ## Known issues / incomplete by design
 

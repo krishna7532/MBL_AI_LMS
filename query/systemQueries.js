@@ -1,5 +1,5 @@
 'use strict';
 
-const pool = require('../config/db');
+const prisma = require('../config/db');
 
-exports.getDatabaseTime = async () => pool.query('SELECT NOW()');
+exports.getDatabaseTime = async () => prisma.$queryRaw`SELECT NOW() AS now`;

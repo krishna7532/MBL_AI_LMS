@@ -1,0 +1,668 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model academic_years {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  label              String               @unique @db.VarChar(50)
+  starts_at          DateTime             @db.Timestamptz(6)
+  ends_at            DateTime             @db.Timestamptz(6)
+  active             Boolean              @default(false)
+  assessments        assessments[]
+  content_releases   content_releases[]
+  leaderboard_scores leaderboard_scores[]
+}
+
+model access_approvals {
+  id                                     String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                                String            @db.Uuid
+  admin_id                               String            @db.Uuid
+  decision                               approval_decision
+  reason                                 String?
+  users_access_approvals_admin_idTousers users             @relation("access_approvals_admin_idTousers", fields: [admin_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_access_approvals_user_idTousers  users             @relation("access_approvals_user_idTousers", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([user_id], map: "idx_access_approvals_user")
+}
+
+model assessment_blueprints {
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  version               Int               @default(1)
+  type                  assessment_type
+  duration_minutes      Int
+  scoring_policy        Json
+  section_configuration Json
+  status                assessment_status @default(draft)
+  assessments           assessments[]
+  attempts              attempts[]
+}
+
+model assessment_items {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessment_id String      @db.Uuid
+  section       String      @db.VarChar(50)
+  question_id   String      @db.Uuid
+  passage_id    String?     @db.Uuid
+  item_order    Int
+  compulsory    Boolean     @default(true)
+  assessments   assessments @relation(fields: [assessment_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  passages      passages?   @relation(fields: [passage_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  questions     questions   @relation(fields: [question_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  responses     responses[]
+
+  @@unique([assessment_id, item_order])
+  @@index([assessment_id], map: "idx_assessment_items_assessment")
+}
+
+model assessments {
+  id                    String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessment_id         String                @unique @db.VarChar(255)
+  release_id            String?               @db.Uuid
+  course_id             String                @db.Uuid
+  academic_year_id      String                @db.Uuid
+  blueprint_id          String                @db.Uuid
+  type                  assessment_type
+  title                 String?               @db.VarChar(255)
+  status                assessment_status     @default(draft)
+  created_at            DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime              @default(now()) @db.Timestamptz(6)
+  assessment_items      assessment_items[]
+  academic_years        academic_years        @relation(fields: [academic_year_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assessment_blueprints assessment_blueprints @relation(fields: [blueprint_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  courses               courses               @relation(fields: [course_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  content_releases      content_releases?     @relation(fields: [release_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  attempts              attempts[]
+  leaderboard_scores    leaderboard_scores[]
+
+  @@index([course_id], map: "idx_assessments_course")
+  @@index([release_id], map: "idx_assessments_release")
+}
+
+model attempts {
+  id                                                               String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                                                          String                 @db.Uuid
+  assessment_id                                                    String                 @db.Uuid
+  release_id                                                       String?                @db.Uuid
+  blueprint_id                                                     String?                @db.Uuid
+  attempt_number                                                   Int
+  seed                                                             String?                @db.VarChar(255)
+  snapshot                                                         Json?
+  started_at                                                       DateTime               @db.Timestamptz(6)
+  expires_at                                                       DateTime?              @db.Timestamptz(6)
+  submitted_at                                                     DateTime?              @db.Timestamptz(6)
+  state                                                            attempt_state          @default(in_progress)
+  assessments                                                      assessments            @relation(fields: [assessment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assessment_blueprints                                            assessment_blueprints? @relation(fields: [blueprint_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  content_releases                                                 content_releases?      @relation(fields: [release_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users                                                            users                  @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  evaluations                                                      evaluations[]
+  leaderboard_scores_leaderboard_scores_best_attempt_idToattempts  leaderboard_scores[]   @relation("leaderboard_scores_best_attempt_idToattempts")
+  leaderboard_scores_leaderboard_scores_first_attempt_idToattempts leaderboard_scores[]   @relation("leaderboard_scores_first_attempt_idToattempts")
+  responses                                                        responses[]
+
+  @@unique([user_id, assessment_id, attempt_number])
+  @@index([assessment_id], map: "idx_attempts_assessment")
+  @@index([state], map: "idx_attempts_state")
+  @@index([user_id], map: "idx_attempts_user")
+}
+
+model audit_events {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actor_id    String?  @db.Uuid
+  action      String   @db.VarChar(150)
+  target_type String?  @db.VarChar(100)
+  target_id   String?  @db.Uuid
+  before_data Json?
+  after_data  Json?
+  reason      String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  users       users?   @relation(fields: [actor_id], references: [id], onUpdate: NoAction)
+
+  @@index([actor_id], map: "idx_audit_events_actor")
+  @@index([created_at], map: "idx_audit_events_created")
+  @@index([target_type, target_id], map: "idx_audit_events_target")
+}
+
+model consents {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String       @db.Uuid
+  consent_type   consent_type
+  policy_version String       @db.VarChar(50)
+  accepted_at    DateTime     @db.Timestamptz(6)
+  withdrawn_at   DateTime?    @db.Timestamptz(6)
+  ip_address     String?      @db.Inet
+  user_agent     String?
+  users          users        @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id], map: "idx_consents_user")
+}
+
+model content_releases {
+  id                         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  release_id                 String           @unique @db.VarChar(255)
+  release_type               release_type
+  academic_year_id           String           @db.Uuid
+  program_year               String           @db.VarChar(20)
+  week_number                Int?
+  month_number               Int?
+  version                    Int
+  publish_at                 DateTime?        @db.Timestamptz(6)
+  content_checksum           String?          @db.VarChar(255)
+  status                     release_status   @default(draft)
+  notes_approval_status      String?          @db.VarChar(50)
+  assessment_approval_status String?          @db.VarChar(50)
+  manifest                   Json?
+  created_at                 DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime         @default(now()) @db.Timestamptz(6)
+  archive_path               String?
+  assessments                assessments[]
+  attempts                   attempts[]
+  academic_years             academic_years   @relation(fields: [academic_year_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  revision_notes             revision_notes[]
+
+  @@unique([release_id, version])
+  @@index([academic_year_id], map: "idx_content_releases_academic_year")
+  @@index([status], map: "idx_content_releases_status")
+}
+
+model courses {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code           String           @unique @db.VarChar(50)
+  display_name   String           @db.VarChar(200)
+  program_year   String           @db.VarChar(20)
+  active         Boolean          @default(true)
+  assessments    assessments[]
+  passages       passages[]
+  questions      questions[]
+  revision_notes revision_notes[]
+}
+
+model evaluations {
+  id                     String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  response_id            String           @db.Uuid
+  attempt_id             String           @db.Uuid
+  state                  evaluation_state @default(pending)
+  score                  Decimal?         @db.Decimal(8, 2)
+  rubric_breakdown       Json?
+  feedback               Json?
+  model_version          String?          @db.VarChar(100)
+  prompt_version         String?          @db.VarChar(100)
+  rubric_version         String?          @db.VarChar(100)
+  reasoning_effort       String?          @db.VarChar(100)
+  input_tokens           Int?
+  output_tokens          Int?
+  latency_ms             Int?
+  answer_hash            String?          @db.VarChar(128)
+  normalized_answer_hash String?          @db.VarChar(128)
+  error_message          String?
+  reviewed_by            String?          @db.Uuid
+  created_at             DateTime         @default(now()) @db.Timestamptz(6)
+  completed_at           DateTime?        @db.Timestamptz(6)
+  updated_at             DateTime         @default(now()) @db.Timestamptz(6)
+  attempts               attempts         @relation(fields: [attempt_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  responses              responses        @relation(fields: [response_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                  users?           @relation(fields: [reviewed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([attempt_id], map: "idx_evaluations_attempt")
+  @@index([response_id], map: "idx_evaluations_response")
+  @@index([state], map: "idx_evaluations_state")
+}
+
+model exam_pattern_rules {
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rule_key         String  @db.VarChar(150)
+  rule_value       Json
+  source           String?
+  confidence       String? @db.VarChar(50)
+  effective_cohort String? @db.VarChar(100)
+  version          Int     @default(1)
+
+  @@unique([rule_key, version])
+}
+
+model leaderboard_profiles {
+  id      String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id String             @unique @db.Uuid
+  handle  String             @unique @db.VarChar(100)
+  status  leaderboard_status @default(opted_out)
+  users   users              @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model leaderboard_scores {
+  id                                                     String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                                                String         @db.Uuid
+  academic_year_id                                       String         @db.Uuid
+  assessment_id                                          String         @db.Uuid
+  first_attempt_id                                       String?        @db.Uuid
+  best_attempt_id                                        String?        @db.Uuid
+  first_score                                            Decimal?       @db.Decimal(8, 2)
+  best_score                                             Decimal?       @db.Decimal(8, 2)
+  academic_years                                         academic_years @relation(fields: [academic_year_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assessments                                            assessments    @relation(fields: [assessment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  attempts_leaderboard_scores_best_attempt_idToattempts  attempts?      @relation("leaderboard_scores_best_attempt_idToattempts", fields: [best_attempt_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  attempts_leaderboard_scores_first_attempt_idToattempts attempts?      @relation("leaderboard_scores_first_attempt_idToattempts", fields: [first_attempt_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users                                                  users          @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([assessment_id], map: "idx_leaderboard_scores_assessment")
+  @@index([user_id], map: "idx_leaderboard_scores_user")
+  @@index([academic_year_id], map: "idx_leaderboard_scores_year")
+}
+
+model notifications {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String             @db.Uuid
+  template       String             @db.VarChar(100)
+  event          String             @db.VarChar(150)
+  delivery_state notification_state @default(pending)
+  sent_at        DateTime?          @db.Timestamptz(6)
+  users          users              @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([delivery_state], map: "idx_notifications_state")
+  @@index([user_id], map: "idx_notifications_user")
+}
+
+model passages {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  stable_id        String             @db.VarChar(255)
+  version          Int                @default(1)
+  course_id        String             @db.Uuid
+  passage_text     String
+  source_lineage   Json               @default("[]")
+  assessment_items assessment_items[]
+  courses          courses            @relation(fields: [course_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  questions        questions[]
+
+  @@unique([stable_id, version])
+  @@index([course_id], map: "idx_passages_course")
+}
+
+model payments {
+  id                  String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id             String          @db.Uuid
+  razorpay_order_id   String?         @unique @db.VarChar(255)
+  razorpay_payment_id String?         @unique @db.VarChar(255)
+  razorpay_signature  String?         @db.VarChar(512)
+  amount              Decimal         @db.Decimal(12, 2)
+  currency            String          @default("INR") @db.Char(3)
+  state               payment_state   @default(created)
+  idempotency_key     String          @unique @db.VarChar(255)
+  raw_webhook_event   Json?
+  created_at          DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime        @default(now()) @db.Timestamptz(6)
+  users               users           @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subscriptions       subscriptions[]
+
+  @@index([user_id], map: "idx_payments_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model plans {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code            String          @unique @db.VarChar(50)
+  price           Decimal         @db.Decimal(12, 2)
+  currency        String          @default("INR") @db.Char(3)
+  duration_months Int?
+  duration_years  Int?
+  active          Boolean         @default(true)
+  subscriptions   subscriptions[]
+}
+
+model questions {
+  id                     String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  question_id            String                      @db.VarChar(255)
+  version                Int                         @default(1)
+  course_id              String                      @db.Uuid
+  concept_ids            Json?                       @default("[]")
+  exam_role              String                      @db.VarChar(50)
+  question_type          String                      @db.VarChar(100)
+  response_format        response_format
+  stem_form              stem_form
+  shared_passage_id      String?                     @db.Uuid
+  question_number        Int?
+  prompt_markdown        String
+  options                Json                        @default("[]")
+  correct_option_ids     Json                        @default("[]")
+  explanation_markdown   String?
+  directive_verbs        Json                        @default("[]")
+  marks                  Decimal                     @db.Decimal(6, 2)
+  sub_issues             Json                        @default("[]")
+  required_authority     Json                        @default("[]")
+  required_output        Json                        @default("[]")
+  assumptions_policy     String?                     @db.VarChar(50)
+  rubric                 Json                        @default("[]")
+  expected_answer_points Json                        @default("[]")
+  origin                 question_origin
+  source_refs            Json                        @default("[]")
+  pattern_confidence     question_pattern_confidence
+  approval_status        question_approval_status    @default(draft)
+  learner_badge          String?                     @db.VarChar(100)
+  private_provenance     Json?
+  assessment_items       assessment_items[]
+  courses                courses                     @relation(fields: [course_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  passages               passages?                   @relation(fields: [shared_passage_id], references: [id], onUpdate: NoAction)
+
+  @@unique([question_id, version])
+  @@index([course_id], map: "idx_questions_course")
+  @@index([shared_passage_id], map: "idx_questions_passage")
+  @@index([approval_status], map: "idx_questions_status")
+}
+
+model responses {
+  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attempt_id          String           @db.Uuid
+  assessment_item_id  String           @db.Uuid
+  selected_option_ids Json?
+  subjective_answer   String?
+  assumptions         String?
+  autosave_version    Int              @default(1)
+  last_autosaved_at   DateTime?        @db.Timestamptz(6)
+  submitted_at        DateTime?        @db.Timestamptz(6)
+  evaluations         evaluations[]
+  assessment_items    assessment_items @relation(fields: [assessment_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  attempts            attempts         @relation(fields: [attempt_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([attempt_id, assessment_item_id])
+  @@index([attempt_id], map: "idx_responses_attempt")
+}
+
+model revision_notes {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  stable_id        String           @db.VarChar(255)
+  version          Int              @default(1)
+  release_id       String           @db.Uuid
+  course_id        String           @db.Uuid
+  markdown         String
+  taxonomy_node_id String?          @db.Uuid
+  courses          courses          @relation(fields: [course_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  content_releases content_releases @relation(fields: [release_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  taxonomy_nodes   taxonomy_nodes?  @relation(fields: [taxonomy_node_id], references: [id], onUpdate: NoAction)
+
+  @@unique([stable_id, version])
+  @@index([course_id], map: "idx_revision_notes_course")
+  @@index([release_id], map: "idx_revision_notes_release")
+}
+
+model schema_migrations {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique @db.VarChar(255)
+  applied_at DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model source_chunks {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  private_chunk_id String          @unique @db.VarChar(255)
+  source_record_id String          @db.Uuid
+  locator          String?
+  taxonomy_node_id String?         @db.Uuid
+  chunk_text       String
+  text_hash        String          @db.VarChar(128)
+  source_records   source_records  @relation(fields: [source_record_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  taxonomy_nodes   taxonomy_nodes? @relation(fields: [taxonomy_node_id], references: [id], onUpdate: NoAction)
+
+  @@index([text_hash], map: "idx_source_chunks_hash")
+  @@index([source_record_id], map: "idx_source_chunks_source")
+  @@index([taxonomy_node_id], map: "idx_source_chunks_taxonomy")
+}
+
+model source_records {
+  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  private_source_id   String             @unique @db.VarChar(255)
+  source_type         String             @db.VarChar(100)
+  source_subtype      String?            @db.VarChar(100)
+  publication_year    Int?
+  authority           String?            @db.VarChar(255)
+  verification        verification_state @default(pending_review)
+  rights_status       String?            @db.VarChar(100)
+  title               String?
+  publisher           String?
+  source_url          String?
+  retrieval_timestamp DateTime?          @db.Timestamptz(6)
+  locator             String?
+  safe_citation       String?
+  private_path        String?
+  review_notes        String?
+  source_chunks       source_chunks[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model subscriptions {
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String              @db.Uuid
+  plan_id    String              @db.Uuid
+  payment_id String?             @db.Uuid
+  starts_at  DateTime            @db.Timestamptz(6)
+  ends_at    DateTime            @db.Timestamptz(6)
+  status     subscription_status @default(pending)
+  payments   payments?           @relation(fields: [payment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  plans      plans               @relation(fields: [plan_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users      users               @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([status], map: "idx_subscriptions_status")
+  @@index([user_id], map: "idx_subscriptions_user")
+}
+
+model taxonomy_nodes {
+  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  external_id          String?          @unique @db.VarChar(255)
+  type                 taxonomy_type
+  canonical_name       String           @db.VarChar(255)
+  parent_id            String?          @db.Uuid
+  aliases              String[]         @default([])
+  revision_notes       revision_notes[]
+  source_chunks        source_chunks[]
+  taxonomy_nodes       taxonomy_nodes?  @relation("taxonomy_nodesTotaxonomy_nodes", fields: [parent_id], references: [id], onUpdate: NoAction)
+  other_taxonomy_nodes taxonomy_nodes[] @relation("taxonomy_nodesTotaxonomy_nodes")
+
+  @@unique([type, canonical_name])
+  @@index([parent_id], map: "idx_taxonomy_parent")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model trials {
+  id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id   String      @db.Uuid
+  starts_at DateTime    @db.Timestamptz(6)
+  ends_at   DateTime    @db.Timestamptz(6)
+  state     trial_state @default(active)
+  users     users       @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([user_id], map: "idx_trials_user")
+}
+
+model users {
+  id                                                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  google_subject                                    String                @unique @db.VarChar(255)
+  name                                              String                @db.VarChar(150)
+  email                                             String                @unique @db.VarChar(320)
+  phone                                             String?               @db.VarChar(30)
+  role                                              user_role             @default(applicant)
+  account_state                                     account_state         @default(pending_approval)
+  created_at                                        DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at                                        DateTime              @default(now()) @db.Timestamptz(6)
+  deleted_at                                        DateTime?             @db.Timestamptz(6)
+  access_approvals_access_approvals_admin_idTousers access_approvals[]    @relation("access_approvals_admin_idTousers")
+  access_approvals_access_approvals_user_idTousers  access_approvals[]    @relation("access_approvals_user_idTousers")
+  attempts                                          attempts[]
+  audit_events                                      audit_events[]
+  consents                                          consents[]
+  evaluations                                       evaluations[]
+  leaderboard_profiles                              leaderboard_profiles?
+  leaderboard_scores                                leaderboard_scores[]
+  notifications                                     notifications[]
+  payments                                          payments[]
+  subscriptions                                     subscriptions[]
+  trials                                            trials[]
+
+  @@index([account_state], map: "idx_users_account_state")
+  @@index([role], map: "idx_users_role")
+}
+
+enum account_state {
+  pending_approval
+  active
+  trial_active
+  trial_expired
+  paid_active
+  paid_expired
+  rejected
+  suspended
+  deleted
+}
+
+enum approval_decision {
+  approved
+  rejected
+}
+
+enum assessment_status {
+  draft
+  approved
+  published
+  retired
+}
+
+enum assessment_type {
+  weekly
+  monthly
+  practice
+}
+
+enum attempt_state {
+  in_progress
+  submitted
+  expired
+  evaluation_pending
+  evaluated
+  cancelled
+}
+
+enum consent_type {
+  terms
+  privacy
+  leaderboard
+  marketing
+}
+
+enum evaluation_state {
+  pending
+  processing
+  completed
+  failed
+  manual_review
+}
+
+enum leaderboard_status {
+  opted_in
+  opted_out
+}
+
+enum notification_state {
+  pending
+  sent
+  failed
+  cancelled
+}
+
+enum payment_state {
+  created
+  authorized
+  captured
+  failed
+  refunded
+  partially_refunded
+}
+
+enum question_approval_status {
+  draft
+  needs_review
+  approved
+  rejected
+  retired
+}
+
+enum question_origin {
+  pyq_reused
+  practice_reused
+  web_sourced
+  adapted
+  ai_generated
+}
+
+enum question_pattern_confidence {
+  confirmed
+  corroborated
+  unverified
+  product_default
+}
+
+enum release_status {
+  draft
+  validating
+  needs_review
+  approved
+  scheduled
+  published
+  superseded
+  retired
+}
+
+enum release_type {
+  weekly
+  monthly
+  practice_bank
+}
+
+enum response_format {
+  single_choice_mcq
+  multiple_select_mcq
+  subjective
+}
+
+enum stem_form {
+  standalone
+  scenario
+  shared_scenario_subitem
+}
+
+enum subscription_status {
+  pending
+  active
+  expired
+  cancelled
+  suspended
+}
+
+enum taxonomy_type {
+  module
+  topic
+  concept
+}
+
+enum trial_state {
+  active
+  expired
+  cancelled
+}
+
+enum user_role {
+  applicant
+  approved_trial_learner
+  paid_learner
+  expired_learner
+  content_editor
+  admin_publisher
+  public_leaderboard_viewer
+}
+
+enum verification_state {
+  verified
+  unverified
+  pending_review
+  rejected
+}

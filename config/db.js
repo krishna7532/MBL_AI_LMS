@@ -1,24 +1,24 @@
-"use strict";
+'use strict';
 
-require("dotenv").config();
+require('dotenv').config();
 
-const { Pool } = require("pg");
+const { PrismaClient } = require('@prisma/client');
+const ensureDatabaseUrl = require('./databaseUrl');
 
-const pool = new Pool({
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_NAME,
-    password: process.env.DB_PASSWORD,
-    port: Number(process.env.DB_PORT),
-    connectionTimeoutMillis: 5000
-});
+if (!ensureDatabaseUrl()) {
+  throw new Error('Configure DATABASE_URL or all legacy DB_* PostgreSQL settings.');
+}
 
-pool.on("connect", () => {
-    console.log("PostgreSQL connected successfully");
-});
+const globalForPrisma = globalThis;
 
-pool.on("error", (err) => {
-    console.error("PostgreSQL pool error:", err);
-});
+const prisma =
+  globalForPrisma.prisma ||
+  new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
+  });
 
-module.exports = pool;
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+}
+
+module.exports = prisma;

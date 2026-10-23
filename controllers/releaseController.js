@@ -2,7 +2,7 @@
 
 const { parseReleasePackage, validateRelease } = require('../services/releaseImporter');
 const { saveReleaseArchive, deleteReleaseArchive } = require('../services/releaseStorage');
-const pool = require('../config/db');
+const prisma = require('../config/db');
 const mock = require('../services/mockService');
 const q = require('../query/releaseQueries');
 
@@ -57,9 +57,7 @@ exports.importRelease = async (req, res, next) => {
     });
   }
 
-  let client;
-  let transactionOpen = false;
-  let commitAttempted = false;
+  let transactionCallbackCompleted = false;
   let archiveKey;
   try {
     archiveKey = await saveReleaseArchive(
@@ -69,62 +67,74 @@ exports.importRelease = async (req, res, next) => {
       req.file.originalname
     );
 
-    client = await pool.connect();
-    await client.query('BEGIN');
-    transactionOpen = true;
+    await prisma.$transaction(async (transaction) => {
+      const releaseId = await q.insertContentRelease(transaction, parsed.manifest, archiveKey);
 
-    const releaseId = await q.insertContentRelease(client, parsed.manifest, archiveKey);
+      for (const note of parsed.notes) {
+        await q.insertRevisionNote(
+          transaction,
+          releaseId,
+          note.courseCode,
+          note.markdown,
+          parsed.manifest.version,
+          parsed.manifest.release_id
+        );
+      }
 
-    // 1. Notes
-    for (const note of parsed.notes) {
-      await q.insertRevisionNote(client, releaseId, note.courseCode, note.markdown, parsed.manifest.version,parsed.manifest.release_id);
-    }
+      for (const passage of parsed.passages) {
+        await q.insertPassage(
+          transaction,
+          passage.course_id,
+          passage.stable_id,
+          passage.passage_text,
+          passage.version || 1,
+          passage.source_lineage
+        );
+      }
 
-    // 2. Passages (if any) — insert before questions that reference them
-    for (const p of parsed.passages) {
-      await q.insertPassage(client, p.course_id, p.stable_id, p.passage_text, p.version || 1, p.source_lineage);
-    }
+      const courseCodes = [...new Set(parsed.questions.map((question) => question.course_id))];
+      const assessmentIdByCourse = new Map();
+      for (const code of courseCodes) {
+        const assessmentId = await q.insertAssessment(
+          transaction,
+          releaseId,
+          code,
+          parsed.manifest.academic_year_id,
+          parsed.manifest.release_type
+        );
+        assessmentIdByCourse.set(code, assessmentId);
+      }
 
-    // 3. One assessment per course, grouping that course's questions under it
-    const courseCodes = [...new Set(parsed.questions.map((qq) => qq.course_id))];
-    const assessmentIdByCourse = {};
-    for (const code of courseCodes) {
-      assessmentIdByCourse[code] = await q.insertAssessment(
-        client, releaseId, code, parsed.manifest.academic_year_id, parsed.manifest.release_type
-      );
-    }
+      let order = 1;
+      for (const question of parsed.questions) {
+        const questionDbId = await q.insertQuestion(transaction, question);
+        const passageDbId = question.shared_passage_id
+          ? await q.getPassageId(
+            transaction,
+            question.shared_passage_id,
+            question.version || 1
+          )
+          : null;
+        const section = question.response_format === 'subjective' ? 'subjective' : 'mcq';
+        await q.insertAssessmentItem(
+          transaction,
+          assessmentIdByCourse.get(question.course_id),
+          section,
+          questionDbId,
+          passageDbId,
+          order++,
+          true
+        );
+      }
 
-    // 4. Questions + assessment_items (linking each question into its course's assessment)
-    let order = 1;
-    for (const question of parsed.questions) {
-      const questionDbId = await q.insertQuestion(client, question);
-      const passageDbId = question.shared_passage_id
-        ? await q.getPassageId(client, question.shared_passage_id, question.version || 1)
-        : null;
-      const section = question.response_format === 'subjective' ? 'subjective' : 'mcq';
-      await q.insertAssessmentItem(
-        client, assessmentIdByCourse[question.course_id], section, questionDbId, passageDbId, order++, true
-      );
-    }
+      transactionCallbackCompleted = true;
+    }, { timeout: 60000 });
 
-    commitAttempted = true;
-    await client.query('COMMIT');
-    transactionOpen = false;
     return renderReleasesPage(res, {
       success: `Release ${parsed.manifest.release_id} imported with status "needs_review".`,
     });
   } catch (err) {
-    let safeToDeleteArchive = !transactionOpen && !commitAttempted;
-    if (client && transactionOpen) {
-      try {
-        await client.query('ROLLBACK');
-        transactionOpen = false;
-        safeToDeleteArchive = !commitAttempted;
-      } catch (rollbackError) {
-        console.error('Failed to roll back release import:', rollbackError);
-      }
-    }
-    if (archiveKey && safeToDeleteArchive) {
+    if (archiveKey && !transactionCallbackCompleted) {
       try {
         await deleteReleaseArchive(archiveKey);
       } catch (cleanupError) {
@@ -133,7 +143,5 @@ exports.importRelease = async (req, res, next) => {
     }
     console.error(err);
     return next(err);
-  } finally {
-    if (client) client.release();
   }
 };

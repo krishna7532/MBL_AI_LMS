@@ -56,15 +56,15 @@ app.get("/api/test-db", async (req, res) => {
         res.json({
             success: true,
             message: "PostgreSQL connected successfully",
-            time: result.rows[0].now
+            time: result[0].now
         });
     } catch (error) {
-        console.error("Database error:", error);
+        console.error("Database health check failed:", error.code || error.name);
 
         res.status(500).json({
             success: false,
             message: "Database connection failed",
-            error: error.message
+            error: "Database connection failed"
         });
     }
 });

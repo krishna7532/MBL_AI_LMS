@@ -6,17 +6,15 @@
  */
 const mock = require('../services/mockService');
 const adminQueries = require('../query/adminQueries');
-const pool=require('../config/db');
-const transactionQueries=require('../query/transactionQueries');
+const prisma = require('../config/db');
 
 const base = { pageStyles: ['admin'], pageScripts: ['admin'] };
 
 exports.dashboard = async (req, res, next) => {
   try {
-    const statsResult = await adminQueries.getDashboardStats();
+    const counts = await adminQueries.getDashboardStats();
 
     const data = await mock.getAdminOverview();
-    const counts = statsResult.rows[0];
     data.stats = {
       ...data.stats,
       totalUsers: counts.total_users,
@@ -31,20 +29,18 @@ exports.dashboard = async (req, res, next) => {
   }
 };
 
-exports.users =async (req, res) =>{
+exports.users = async (req, res) => {
   const data = await mock.getAdminUsers();
   res.render('admin/users', { ...base, title: 'Users & approvals', data });
 };
 
-exports.decision=async(req,res,next)=>{
+exports.decision = async (req, res, next) => {
   const userId = req.params.userId;
   const decision = req.body && req.body.decision;
   const submittedReason = req.body && req.body.reason;
   const reason = typeof submittedReason === 'string' ? submittedReason.trim() : '';
 
-  let client;
-  let transactionOpen = false;
-  try{
+  try {
     if (decision !== 'approved' && decision !== 'rejected') {
       const error = new Error('Choose either approve or reject for this application.');
       error.status = 400;
@@ -54,7 +50,7 @@ exports.decision=async(req,res,next)=>{
     let adminId = req.user && req.user.id;
     if (!adminId) {
       const adminResult = await adminQueries.getAdmin();
-      adminId = adminResult.rows[0] && adminResult.rows[0].id;
+      adminId = adminResult && adminResult.id;
     }
     if (!adminId) {
       const error = new Error('No admin account is available to record this decision.');
@@ -62,20 +58,15 @@ exports.decision=async(req,res,next)=>{
       throw error;
     }
 
-    client=await pool.connect();
-    await transactionQueries.begin(client);
-    transactionOpen = true;
-
-    const result = await adminQueries.decidePendingUser(
-      client,
-      userId,
-      adminId,
-      decision,
-      reason
+    const result = await prisma.$transaction((transaction) =>
+      adminQueries.decidePendingUser(
+        transaction,
+        userId,
+        adminId,
+        decision,
+        reason
+      )
     );
-
-    await transactionQueries.commit(client);
-    transactionOpen = false;
 
     return res.json({
       success: true,
@@ -85,17 +76,8 @@ exports.decision=async(req,res,next)=>{
         : 'Application rejected.',
       trial: result.trial,
     });
-  }catch(error){
-    if (client && transactionOpen) {
-      try {
-        await transactionQueries.rollback(client);
-      } catch (rollbackError) {
-        console.error('Failed to roll back applicant decision transaction:', rollbackError);
-      }
-    }
+  } catch (error) {
     return next(error);
-  } finally {
-    if (client) client.release();
   }
 };
 

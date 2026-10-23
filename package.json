@@ -7,7 +7,14 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "postinstall": "prisma skills sync || exit 0"
+    "prisma:generate": "node scripts/prisma.js generate",
+    "prisma:validate": "node scripts/prisma.js validate",
+    "prisma:db:pull": "node scripts/prisma.js db pull",
+    "prisma:migrate:dev": "node scripts/prisma.js migrate dev",
+    "prisma:migrate:deploy": "node scripts/prisma.js migrate deploy",
+    "prisma:migrate:status": "node scripts/prisma.js migrate status",
+    "prisma:migrate:resolve": "node scripts/prisma.js migrate resolve",
+    "prisma:migrate:diff": "node scripts/prisma.js migrate diff"
   },
   "keywords": [
     "lms",
@@ -18,11 +25,12 @@
   "author": "Krishan Kumar",
   "license": "UNLICENSED",
   "engines": {
-    "node": ">=18"
+    "node": ">=18.18"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
     "@aws-sdk/s3-request-presigner": "^3.1152.0",
+    "@prisma/client": "6.19.0",
     "adm-zip": "^0.6.1",
     "dotenv": "^16.6.1",
     "ejs": "^3.1.10",
@@ -30,10 +38,10 @@
     "express-session": "^1.19.0",
     "multer": "^2.4.0",
     "passport": "^0.7.0",
-    "passport-google-oauth20": "^2.0.0",
-    "pg": "^8.23.1"
+    "passport-google-oauth20": "^2.0.0"
   },
   "devDependencies": {
-    "nodemon": "^1.14.10"
+    "nodemon": "^1.14.10",
+    "prisma": "6.19.0"
   }
 }

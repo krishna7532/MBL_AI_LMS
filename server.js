@@ -2,10 +2,41 @@
 
 const app = require('./app');
 const config = require('./config');
+const prisma = require('./config/db');
 
-require("dotenv").config();
-const PORT = process.env.PORT || 5000;
+async function start() {
+  try {
+    await prisma.$connect();
+    const server = app.listen(config.port, () => {
+      console.log(`MBL-AI LMS listening on http://localhost:${config.port}`);
+    });
 
-app.listen(config.port, () => {
-  console.log(`MBL-AI LMS (Stage 1 preview) listening on http://localhost:${PORT}`);
-});
+    for (const signal of ['SIGINT', 'SIGTERM']) {
+      process.once(signal, () => {
+        server.close(async (error) => {
+          if (error) {
+            console.error('HTTP server shutdown failed:', error.code || error.name);
+            process.exitCode = 1;
+          }
+
+          try {
+            await prisma.$disconnect();
+          } catch (disconnectError) {
+            console.error('Database shutdown failed:', disconnectError.code || disconnectError.name);
+            process.exitCode = 1;
+          }
+        });
+      });
+    }
+  } catch (error) {
+    console.error('Application startup failed:', error.code || error.name);
+    try {
+      await prisma.$disconnect();
+    } catch (disconnectError) {
+      console.error('Database shutdown failed:', disconnectError.code || disconnectError.name);
+    }
+    process.exitCode = 1;
+  }
+}
+
+start();
