@@ -10,6 +10,7 @@ datasource db {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model academic_years {
   id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
   label              String               @unique @db.VarChar(50)
   starts_at          DateTime             @db.Timestamptz(6)
   ends_at            DateTime             @db.Timestamptz(6)
@@ -21,6 +22,7 @@ model academic_years {
 
 model access_approvals {
   id                                     String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at                             DateTime          @default(now()) @db.Timestamptz(6)
   user_id                                String            @db.Uuid
   admin_id                               String            @db.Uuid
   decision                               approval_decision
@@ -33,6 +35,7 @@ model access_approvals {
 
 model assessment_blueprints {
   id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at            DateTime          @default(now()) @db.Timestamptz(6)
   version               Int               @default(1)
   type                  assessment_type
   duration_minutes      Int
@@ -45,6 +48,7 @@ model assessment_blueprints {
 
 model assessment_items {
   id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at    DateTime    @default(now()) @db.Timestamptz(6)
   assessment_id String      @db.Uuid
   section       String      @db.VarChar(50)
   question_id   String      @db.Uuid
@@ -86,6 +90,7 @@ model assessments {
 
 model attempts {
   id                                                               String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at                                                       DateTime               @default(now()) @db.Timestamptz(6)
   user_id                                                          String                 @db.Uuid
   assessment_id                                                    String                 @db.Uuid
   release_id                                                       String?                @db.Uuid
@@ -131,6 +136,7 @@ model audit_events {
 
 model consents {
   id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
   user_id        String       @db.Uuid
   consent_type   consent_type
   policy_version String       @db.VarChar(50)
@@ -173,6 +179,7 @@ model content_releases {
 
 model courses {
   id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
   code           String           @unique @db.VarChar(50)
   display_name   String           @db.VarChar(200)
   program_year   String           @db.VarChar(20)
@@ -216,6 +223,7 @@ model evaluations {
 
 model exam_pattern_rules {
   id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
   rule_key         String  @db.VarChar(150)
   rule_value       Json
   source           String?
@@ -228,6 +236,7 @@ model exam_pattern_rules {
 
 model leaderboard_profiles {
   id      String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime        @default(now()) @db.Timestamptz(6)
   user_id String             @unique @db.Uuid
   handle  String             @unique @db.VarChar(100)
   status  leaderboard_status @default(opted_out)
@@ -236,6 +245,7 @@ model leaderboard_profiles {
 
 model leaderboard_scores {
   id                                                     String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at                                             DateTime       @default(now()) @db.Timestamptz(6)
   user_id                                                String         @db.Uuid
   academic_year_id                                       String         @db.Uuid
   assessment_id                                          String         @db.Uuid
@@ -256,6 +266,7 @@ model leaderboard_scores {
 
 model notifications {
   id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at     DateTime           @default(now()) @db.Timestamptz(6)
   user_id        String             @db.Uuid
   template       String             @db.VarChar(100)
   event          String             @db.VarChar(150)
@@ -269,6 +280,7 @@ model notifications {
 
 model passages {
   id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
   stable_id        String             @db.VarChar(255)
   version          Int                @default(1)
   course_id        String             @db.Uuid
@@ -304,6 +316,7 @@ model payments {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model plans {
   id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
   code            String          @unique @db.VarChar(50)
   price           Decimal         @db.Decimal(12, 2)
   currency        String          @default("INR") @db.Char(3)
@@ -315,6 +328,7 @@ model plans {
 
 model questions {
   id                     String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at             DateTime                    @default(now()) @db.Timestamptz(6)
   question_id            String                      @db.VarChar(255)
   version                Int                         @default(1)
   course_id              String                      @db.Uuid
@@ -355,6 +369,7 @@ model questions {
 
 model responses {
   id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at          DateTime         @default(now()) @db.Timestamptz(6)
   attempt_id          String           @db.Uuid
   assessment_item_id  String           @db.Uuid
   selected_option_ids Json?
@@ -373,6 +388,7 @@ model responses {
 
 model revision_notes {
   id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at       DateTime         @default(now()) @db.Timestamptz(6)
   stable_id        String           @db.VarChar(255)
   version          Int              @default(1)
   release_id       String           @db.Uuid
@@ -390,12 +406,14 @@ model revision_notes {
 
 model schema_migrations {
   id         Int      @id @default(autoincrement())
+  created_at DateTime @default(now()) @db.Timestamptz(6)
   name       String   @unique @db.VarChar(255)
   applied_at DateTime @default(now()) @db.Timestamptz(6)
 }
 
 model source_chunks {
   id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at       DateTime        @default(now()) @db.Timestamptz(6)
   private_chunk_id String          @unique @db.VarChar(255)
   source_record_id String          @db.Uuid
   locator          String?
@@ -412,6 +430,7 @@ model source_chunks {
 
 model source_records {
   id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at          DateTime           @default(now()) @db.Timestamptz(6)
   private_source_id   String             @unique @db.VarChar(255)
   source_type         String             @db.VarChar(100)
   source_subtype      String?            @db.VarChar(100)
@@ -433,6 +452,7 @@ model source_records {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model subscriptions {
   id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime            @default(now()) @db.Timestamptz(6)
   user_id    String              @db.Uuid
   plan_id    String              @db.Uuid
   payment_id String?             @db.Uuid
@@ -449,6 +469,7 @@ model subscriptions {
 
 model taxonomy_nodes {
   id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at           DateTime         @default(now()) @db.Timestamptz(6)
   external_id          String?          @unique @db.VarChar(255)
   type                 taxonomy_type
   canonical_name       String           @db.VarChar(255)
@@ -466,6 +487,7 @@ model taxonomy_nodes {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model trials {
   id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at DateTime   @default(now()) @db.Timestamptz(6)
   user_id   String      @db.Uuid
   starts_at DateTime    @db.Timestamptz(6)
   ends_at   DateTime    @db.Timestamptz(6)
