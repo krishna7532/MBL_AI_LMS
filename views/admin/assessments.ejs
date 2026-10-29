@@ -30,11 +30,15 @@
           <td><%= q.courseName %></td>
           <td><%= q.responseFormat === 'subjective' ? 'Subjective' : 'MCQ' %><br><span class="text-secondary text-small"><%= fmt.label(q.questionType) %></span></td>
           <td><%= q.marks %></td>
-          <td><span class="question-origin-badge"><%= q.originBadge %></span><br><span class="text-secondary text-small">Origin: <%= q.origin %></span></td>
+          <td><span class="question-origin-badge"><%= fmt.label(q.originBadge) %></span><br><span class="text-secondary text-small">Origin: <%= fmt.label(q.origin) %></span></td>
           <td><span class="badge <%= fmt.approvalClass(q.approvalStatus) %>"><%= fmt.label(q.approvalStatus) %></span></td>
           <td class="admin-table-actions">
-            <button type="button" class="btn btn-sm btn-secondary" data-preview-action="Question preview opens in Stage 2.">Preview</button>
-            <% if (q.approvalStatus !== 'approved') { %><button type="button" class="btn btn-sm btn-primary" data-preview-action="Approval is recorded in Stage 2. Nothing was changed.">Approve</button><% } %>
+            <a class="btn btn-sm btn-secondary" href="/admin/assessments/<%= encodeURIComponent(q.id) %>/preview">Preview</a>
+            <% if (q.approvalStatus !== 'approved') { %>
+              <form method="post" action="/admin/assessment/<%= encodeURIComponent(q.id) %>/approve">
+              <button type="submit" class="btn btn-sm btn-primary">Approve</button>
+              </form>
+            <% } %>
           </td>
         </tr>
         <% }) %>

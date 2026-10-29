@@ -15,6 +15,9 @@
 const d = require('./mockData');
 const renderMarkdown = require('./markdown');
 const adminQueries = require('../query/adminQueries');
+const learnerQueries=require('../query/learnerQuerry');
+const questionQueries = require('../query/quesion');
+const questionQuerry=require('../query/quesion');
 
 const COURSE_IDS = ['C01', 'C02', 'C03', 'C04', 'C05'];
 
@@ -50,16 +53,42 @@ exports.getPlans = () => d.plans;
 
 // ── Courses ──────────────────────────────────────────────────────────────────
 
-exports.getCourses = () => ({ year1: d.courses, year2: d.year2Courses });
+exports.getCourses = async (userId) => {
+  const [year1Courses, year2Courses, sprintProgress] = await Promise.all([
+    learnerQueries.getFirstYearCourses(),
+    learnerQueries.getSecondYearCourses(),
+    learnerQueries.getWeeklySprintProgress(userId),
+  ]);
+  const progressByCourseId = new Map(
+    sprintProgress.map((progress) => [progress.courseId, progress])
+  );
+  const mapCourse = (course) => ({
+    id: course.id,
+    _id: course.code,
+    code: course.code,
+    name: course.display_name || '',
+    programYear: course.program_year || '',
+    description: '',
+    modules: [],
+    totalModules: progressByCourseId.get(course.id)?.totalSprints || 0,
+    completedModules: progressByCourseId.get(course.id)?.completedSprints || 0,
+    progress: progressByCourseId.get(course.id)?.totalSprints
+      ? Math.round(
+        (progressByCourseId.get(course.id).completedSprints /
+          progressByCourseId.get(course.id).totalSprints) * 100
+      )
+      : 0,
+    weekday: '',
+    active: course.active,
+  });
 
-exports.getCourse = (id) => {
-  const course = findCourse(id);
-  if (!course) return null;
-  const sprints = allWeeks()
-    .filter((w) => w.sprints.length)
-    .flatMap((w) => w.sprints.filter((s) => s.courseId === id).map((s) => ({ ...s, weekNumber: w.number })));
-  return { ...course, sprints };
+  return {
+    year1: year1Courses.map(mapCourse),
+    year2: year2Courses.map(mapCourse),
+  };
 };
+
+exports.getCourse = (code, userId) => learnerQueries.getCourseByCode(code, userId);
 
 // ── Weekly sprints & dashboard ───────────────────────────────────────────────
 
@@ -90,19 +119,22 @@ function week6Sprints() {
   }));
 }
 
-function allWeeks() {
-  const trialStart = d.demoUser.trial.startDate;
-  return [
-    { number: 7, state: 'current', publishedAt: '2026-09-08T00:00:00+05:30', sprints: d.weeklySprints },
-    { number: 6, state: 'published', publishedAt: '2026-09-01T00:00:00+05:30', sprints: week6Sprints() },
-    // Published before the trial window opened → locked for trial users (PRD §7.4)
-    { number: 5, state: 'locked', publishedAt: '2026-08-25T00:00:00+05:30', sprints: [], trialStart },
-    { number: 8, state: 'upcoming', publishedAt: null, sprints: [] },
-  ];
+//get all weekly in a content release
+ async function allWeeks() {
+  const allWeekly = await learnerQueries.getAllWeekly();
+
+  return Promise.all(
+    allWeekly.map(async (weekly) => ({
+      number: weekly.week_number,
+      state: weekly.status === 'published' ? 'published' : 'upcoming',
+      publishedAt: weekly.publish_at,
+      sprints: await learnerQueries.getWeeklySprint(weekly.id),
+    }))
+  );
 }
 
-exports.getDashboard = () => {
-  const weeks = allWeeks();
+exports.getDashboard = async () => {
+  const weeks = await allWeeks();
   const current = weeks[0];
   const completed = current.sprints.filter((s) => s.status === 'completed').length;
   const monthly = exports.getMonthly();
@@ -125,48 +157,86 @@ exports.getDashboard = () => {
 
 /** Where the primary action on a sprint card should point. */
 exports.sprintHref = (sprint) => {
+  if (sprint.id) return `/weekly/${encodeURIComponent(sprint.id)}`;
   if (sprint.status === 'completed' && sprint._id === 'sprint_w07_C02') return '/results/attempt_001';
   return `/weekly/${sprint._id}`;
 };
 
-exports.getWeeklyOverview = () => allWeeks().filter((w) => w.sprints.length);
+exports.getWeeklyOverview = async () => (await allWeeks()).filter((w) => w.sprints.length);
 
 function publicMcq(q) {
-  // Deliberately omits correctOptionIds and explanation (PRD §15.1, SEC-01).
   return {
-    id: q._id,
-    number: q.questionNumber,
-    prompt: q.prompt,
-    options: q.options.map((o) => ({ id: o.id, text: o.text })),
-    badge: q.originBadge,
-    stemForm: q.stemForm,
+    id: q.id,
+    number: q.question_number,
+    prompt: q.prompt_markdown,
+    options: Array.isArray(q.options) ? q.options.map((o) => ({ id: o.id, text: o.text })) : [],
+    badge: q.learner_badge,
+    stemForm: q.stem_form,
   };
 }
 
 function publicSubjective(q) {
-  // Deliberately omits rubric and expected-answer points (PRD §8.5).
-  return { id: q._id, prompt: q.prompt, marks: q.marks, subParts: q.subParts, badge: q.originBadge };
+  const subParts = [...q.prompt_markdown.matchAll(/\(([a-z])\)/gi)].map((match) => match[1].toLowerCase());
+  return {
+    id: q.id,
+    prompt: q.prompt_markdown,
+    marks: Number(q.marks),
+    subParts,
+    badge: q.learner_badge,
+  };
 }
 
-exports.getSprint = (sprintId) => {
-  const sprint = allWeeks().flatMap((w) => w.sprints).find((s) => s._id === sprintId);
-  if (!sprint) return null;
 
-  const hasContent = sprintId === 'sprint_w07_C01';
-  const base = { sprint, hasContent, resultHref: sprint.status === 'completed' && sprintId === 'sprint_w07_C02' ? '/results/attempt_001' : null };
-  if (!hasContent) return base;
+//weekly sprint
+exports.getSprint = async (sprintId) => {
+  const weeks = await allWeeks();
+  const sprint = weeks
+    .flatMap((week) => week.sprints)
+    .find((item) => item.id === sprintId || item._id === sprintId);
+  if (sprint) {
+    const note = sprint.releaseId && sprint.courseId
+      ? await learnerQueries.getNoteByReleaseAndCourseId(sprint.releaseId, sprint.courseId)
+      : null;
+    const headings = note?.markdown.match(/^#{1,6}\s+.+$/gm) || [];
+    const hasContent = Boolean(sprint.id);
+    const base = {
+      sprint,
+      hasContent,
+      resultHref: sprint.status === 'completed' && sprintId === 'sprint_w07_C02'
+        ? '/results/attempt_001'
+        : null,
+    };
+    if (!hasContent) return base;
 
-  return {
-    ...base,
-    notes: {
-      title: d.weeklySprintNotes.title,
-      readTime: d.weeklySprintNotes.readTime,
-      html: renderMarkdown(d.weeklySprintNotes.content),
-    },
-    mcqs: d.weeklyMCQs.map(publicMcq),
-    subjective: publicSubjective(d.weeklySubjective),
-    limits: { subjectiveMaxChars: 3000, subjectiveWarnChars: 2500, assumptionsMaxChars: 500 },
-  };
+    const [mcqAssessment, subjectiveAssessment] = await Promise.all([
+      questionQueries.getMcqQuestionBySprintId(sprint.id),
+      questionQueries.getSubQuestionBySprintId(sprint.id),
+    ]);
+    const mcqs = (mcqAssessment?.assessment_items || []).map((item) => publicMcq(item.questions));
+    const subjectiveQuestion = subjectiveAssessment?.assessment_items[0]?.questions;
+
+    return {
+      ...base,
+      notes: {
+        title: headings[0] ? headings[0].replace(/^#{1,6}\s+/, '') : '',
+        readTime: note?.readTime || '',
+        html: renderMarkdown(note?.markdown || ''),
+      },
+      mcqs,
+      subjective: subjectiveQuestion ? publicSubjective(subjectiveQuestion) : {
+        id: '',
+        prompt: '',
+        marks: 0,
+        subParts: [],
+        badge: '',
+      },
+      limits: { subjectiveMaxChars: 3000, subjectiveWarnChars: 2500, assumptionsMaxChars: 500 },
+    };
+  }
+
+  const databaseSprint = await learnerQueries.getWeeklySprintByAssessmentId(sprintId);
+  if (!databaseSprint) return null;
+  return { sprint: databaseSprint, hasContent: false, resultHref: null };
 };
 
 // ── Results ──────────────────────────────────────────────────────────────────
@@ -268,7 +338,7 @@ exports.getMonthly = () => {
     const found = real.find((s) => s.courseId === cid);
     if (found) return found;
     return {
-      _id: `sim_m02_${cid}`,
+      id: `sim_m02_${cid}`,
       courseId: cid,
       courseName: findCourse(cid).name,
       month: 2,
@@ -284,7 +354,16 @@ exports.getMonthly = () => {
   });
 };
 
-exports.getSimulationSummary = (id) => exports.getMonthly().find((s) => s._id === id) || null;
+exports.getMonthlyAssessments = (userId) => learnerQueries.getMonthlyAssessments(userId);
+
+exports.getMonthlyAssessmentSummary = async (id) => {
+  const assessments = await learnerQueries.getMonthlyAssessments();
+  return assessments.find((assessment) => assessment.id === id) || null;
+};
+
+exports.getExamPatternRule = (ruleKey) => learnerQueries.getExamPatternRule(ruleKey);
+
+exports.getSimulationSummary = (id) => exports.getMonthly().find((s) => s.id === id) || null;
 
 /** Learner-safe simulation payload. No answers, explanations or rubrics. */
 exports.getSimulationPlayer = (id) => {
@@ -410,7 +489,11 @@ exports.getNotifications = () => d.notifications;
 // ── Admin ────────────────────────────────────────────────────────────────────
 
 exports.getAdminOverview = async () => {
-  const users = await adminQueries.getPendingApprovals();
+  const [users, releases, auditLogs] = await Promise.all([
+    adminQueries.getPendingApprovals(),
+    exports.getReleases(),
+    exports.getAuditLogs(),
+  ]);
   return {
     stats: d.adminStats,
     pending: users.map((user) => ({
@@ -420,11 +503,11 @@ exports.getAdminOverview = async () => {
       phone: user.phone || '—',
       createdAt: user.created_at,
     })),
-    recentAudit: d.auditLogs.slice(0, 5),
-    releases: d.releases
+    recentAudit: auditLogs.slice(0, 5),
+    releases: releases
       .filter((r) => r.status !== 'published')
       .concat(
-        d.releases
+        releases
           .filter((r) => r.status === 'published')
           .slice(0, 1)
       ),
@@ -470,16 +553,246 @@ exports.getAdminUsers = async() => {
   };
 };
 
-exports.getContentItems = () => d.contentItems;
-exports.getAssessmentItems = () => d.assessmentItems;
-exports.getAuditLogs = () => d.auditLogs;
+exports.getContentItems = async () => {
+  const notes = await adminQueries.getAllRevisionNotes();
+
+  return notes.map((note) => {
+    const headings = note.markdown.match(/^#{1,6}\s+.+$/gm) || [];
+    const headingText = (heading) => heading.replace(/^#{1,6}\s+/, '').trim();
+
+    return {
+      id: note.id,
+      courseId: note.courses.code,
+      courseName: note.courses.display_name,
+      type: 'revision_notes',
+      title: headings[0] ? headingText(headings[0]) : note.stable_id,
+      topic: headings[1] ? headingText(headings[1]) : null,
+      weekNumber: note.content_releases.week_number,
+      version: note.version,
+      source: null,
+      approvalStatus:note.approval_status,
+      lastUpdated: note.created_at,
+    };
+  });
+};
+exports.getAssessmentItems = async () => {
+  const assessmentItems = await adminQueries.getAllAssessment();
+
+  return assessmentItems.map(({ section, questions }) => ({
+    id: questions.id,
+    _id: questions.question_id,
+    courseId: questions.courses.code,
+    courseName: questions.courses.display_name,
+    questionType: questions.question_type,
+    responseFormat: questions.response_format,
+    topic: Array.isArray(questions.concept_ids) && questions.concept_ids.length
+      ? questions.concept_ids.join(', ')
+      : '—',
+    difficulty: '—',
+    origin: questions.origin,
+    originBadge: questions.learner_badge || questions.origin,
+    approvalStatus: questions.approval_status,
+    marks: questions.marks,
+    version: questions.version,
+    prompt: questions.prompt_markdown,
+    section,
+  }));
+
+};
+
+exports.getAssessmentPreview = async (id) => {
+  const question = await adminQueries.getAssessmentQuestionById(id);
+  if (!question) return null;
+
+  return {
+    id: question.id,
+    questionId: question.question_id,
+    version: question.version,
+    questionNumber: question.question_number,
+    courseName: question.courses.display_name,
+    courseCode: question.courses.code,
+    examRole: question.exam_role,
+    section: [...new Set(question.assessment_items.map((item) => item.section))].join(', ') || '—',
+    questionType: question.question_type,
+    responseFormat: question.response_format,
+    stemForm: question.stem_form,
+    concepts: Array.isArray(question.concept_ids) ? question.concept_ids : [],
+    promptHtml: renderMarkdown(question.prompt_markdown),
+    options: Array.isArray(question.options) ? question.options : [],
+    correctOptionIds: Array.isArray(question.correct_option_ids) ? question.correct_option_ids : [],
+    explanationHtml: question.explanation_markdown
+      ? renderMarkdown(question.explanation_markdown)
+      : null,
+    directiveVerbs: Array.isArray(question.directive_verbs) ? question.directive_verbs : [],
+    marks: question.marks,
+    subIssues: Array.isArray(question.sub_issues) ? question.sub_issues : [],
+    requiredAuthority: Array.isArray(question.required_authority) ? question.required_authority : [],
+    requiredOutput: Array.isArray(question.required_output) ? question.required_output : [],
+    assumptionsPolicy: question.assumptions_policy,
+    rubric: question.rubric,
+    expectedAnswerPoints: question.expected_answer_points,
+    origin: question.origin,
+    sourceRefs: question.source_refs,
+    patternConfidence: question.pattern_confidence,
+    learnerBadge: question.learner_badge,
+    approvalStatus: question.approval_status,
+    passage: question.passages
+      ? {
+        stableId: question.passages.stable_id,
+        version: question.passages.version,
+        html: renderMarkdown(question.passages.passage_text),
+      }
+      : null,
+  };
+};
+
+exports.getAuditLogs = async () => {
+  const auditEvents = await adminQueries.getAllAuditEvent();
+  const targetUserIds = [...new Set(
+    auditEvents
+      .filter((event) => event.target_type === 'user' && event.target_id)
+      .map((event) => event.target_id)
+  )];
+  const targetUsers = targetUserIds.length
+    ? await adminQueries.getUsersByIds(targetUserIds)
+    : [];
+  const targetNameById = new Map(targetUsers.map((user) => [user.id, user.name]));
+
+  return auditEvents.map((event) => {
+    const before = event.before_data || {};
+    const after = event.after_data || {};
+    const changes = [];
+
+    if (before.account_state || after.account_state) {
+      changes.push(`Account state: ${before.account_state || '—'} → ${after.account_state || '—'}`);
+    }
+    if (before.role || after.role) {
+      changes.push(`Role: ${before.role || '—'} → ${after.role || '—'}`);
+    }
+    if (event.reason) changes.push(`Reason: ${event.reason}`);
+
+    return {
+      _id: event.id,
+      timestamp: event.created_at,
+      actor: event.users?.name || 'System',
+      actorRole: event.users?.role || 'system',
+      action: event.action,
+      entity: event.target_type || 'Unknown',
+      entityId: event.target_id || '—',
+      entityName:
+        (event.target_type === 'user' && event.target_id && targetNameById.get(event.target_id)) ||
+        event.target_type ||
+        'Unknown target',
+      details: changes.join('; ') || 'No additional details recorded.',
+      result: 'success',
+    };
+  });
+};
 
 const RELEASE_STEPS = ['draft', 'validating', 'needs_review', 'approved', 'scheduled', 'published'];
-exports.getReleases = () =>
-  d.releases.map((r) => {
-    const idx = RELEASE_STEPS.indexOf(r.status);
-    return { ...r, steps: RELEASE_STEPS.map((s, i) => ({ key: s, state: i < idx ? 'completed' : i === idx ? 'active' : '' })) };
+exports.getReleases = async () => {
+  const releases = await adminQueries.getAllReleases();
+
+  return releases.map((release) => {
+    const questions = release.assessments.flatMap((assessment) =>
+      assessment.assessment_items.map((item) => item.questions)
+    );
+    const notesCount = release.revision_notes.length;
+    const mcqCount = questions.filter((question) => question.response_format !== 'subjective').length;
+    const subjectiveCount = questions.length - mcqCount;
+    const idx = RELEASE_STEPS.indexOf(release.status);
+
+    return {
+      id: release.id,
+      releaseId: release.release_id,
+      releaseType: release.release_type,
+      weekNumber: release.week_number,
+      month: release.month_number,
+      version: release.version,
+      status: release.status,
+      publishedAt: release.publish_at,
+      notesCount,
+      mcqCount,
+      subjectiveCount,
+      approval: {
+        notes: release.notes_approval_status || (notesCount ? 'draft' : 'n/a'),
+        assessment: release.assessment_approval_status || 'draft',
+      },
+      checksum: release.content_checksum,
+      steps: RELEASE_STEPS.map((step, i) => ({
+        key: step,
+        state: i < idx ? 'completed' : i === idx ? 'active' : '',
+      })),
+    };
   });
+};
+
+exports.getReleasePreview = async (id) => {
+  const release = await adminQueries.getReleaseById(id);
+  if (!release) return null;
+
+  return {
+    id: release.id,
+    releaseId: release.release_id,
+    releaseType: release.release_type,
+    programYear: release.program_year,
+    academicYear: release.academic_years.label,
+    weekNumber: release.week_number,
+    month: release.month_number,
+    version: release.version,
+    status: release.status,
+    publishedAt: release.publish_at,
+    checksum: release.content_checksum,
+    notesApproval: release.notes_approval_status || (release.revision_notes.length ? 'draft' : 'n/a'),
+    assessmentApproval: release.assessment_approval_status || 'draft',
+    notes: release.revision_notes.map((note) => ({
+      id: note.id,
+      stableId: note.stable_id,
+      version: note.version,
+      courseName: note.courses.display_name,
+      courseCode: note.courses.code,
+      html: renderMarkdown(note.markdown),
+    })),
+    assessments: release.assessments.map((assessment) => ({
+      id: assessment.assessment_id,
+      title: assessment.title,
+      type: assessment.type,
+      status: assessment.status,
+      courseName: assessment.courses.display_name,
+      courseCode: assessment.courses.code,
+      items: assessment.assessment_items.map((item) => ({
+        section: item.section,
+        order: item.item_order,
+        compulsory: item.compulsory,
+        passage: item.passages
+          ? {
+            stableId: item.passages.stable_id,
+            version: item.passages.version,
+            html: renderMarkdown(item.passages.passage_text),
+          }
+          : null,
+        questionId: item.questions.question_id,
+        version: item.questions.version,
+        questionNumber: item.questions.question_number,
+        questionType: item.questions.question_type,
+        responseFormat: item.questions.response_format,
+        promptHtml: renderMarkdown(item.questions.prompt_markdown),
+        options: Array.isArray(item.questions.options) ? item.questions.options : [],
+        correctOptionIds: Array.isArray(item.questions.correct_option_ids)
+          ? item.questions.correct_option_ids
+          : [],
+        explanationHtml: item.questions.explanation_markdown
+          ? renderMarkdown(item.questions.explanation_markdown)
+          : null,
+        marks: item.questions.marks,
+        rubric: Array.isArray(item.questions.rubric) ? item.questions.rubric : [],
+        expectedAnswerPoints: Array.isArray(item.questions.expected_answer_points)
+          ? item.questions.expected_answer_points
+          : [],
+      })),
+    })),
+  };
+};
 
 // Pattern-rule records follow PRD §6.3. Values here are display-only mock records.
 exports.getAdminSettings = () => ({
@@ -498,3 +811,23 @@ exports.getAdminSettings = () => ({
   },
   ai: { provider: 'Not configured (Stage 2)', model: 'Configured server-side', promptVersion: '—', maxAnswerChars: 3000, note: 'Answer and token caps are an open decision (PRD §26).' },
 });
+
+//For preview action
+exports.getRevisionNotePreview = async (id) => {
+  const note = await adminQueries.getRevisionNoteById(id);
+  if (!note) return null;
+
+  return {
+    id: note.id,
+    stableId: note.stable_id,
+    version: note.version,
+    courseName: note.courses.display_name,
+    courseCode: note.courses.code,
+    releaseType: note.content_releases.release_type,
+    weekNumber: note.content_releases.week_number,
+    monthNumber: note.content_releases.month_number,
+    status: note.content_releases.status,
+    updatedAt: note.created_at,
+    html: renderMarkdown(note.markdown),
+  };
+};

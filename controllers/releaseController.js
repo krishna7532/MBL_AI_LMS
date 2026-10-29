@@ -6,55 +6,76 @@ const prisma = require('../config/db');
 const mock = require('../services/mockService');
 const q = require('../query/releaseQueries');
 
-function renderReleasesPage(res, { error = null, success = null } = {}) {
+async function renderReleasesPage(res, { error = null, success = null } = {}) {
+  const releases = await mock.getReleases();
   return res.render('admin/releases', {
     title: 'Release management',
     pageStyles: ['admin'],
     pageScripts: ['admin'],
-    releases: mock.getReleases(),
+    releases,
     error,
     success,
   });
 }
 
-exports.showReleasesPage = (req, res) => renderReleasesPage(res);
+exports.showReleasesPage = async (req, res, next) => {
+  try {
+    return await renderReleasesPage(res);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.previewRelease = async (req, res, next) => {
+  try {
+    const release = await mock.getReleasePreview(req.params.releaseId);
+    if (!release) {
+      const error = new Error('Release not found.');
+      error.status = 404;
+      throw error;
+    }
+
+    return res.render('admin/release-preview', {
+      title: `Preview: ${release.releaseId}`,
+      pageStyles: ['admin'],
+      pageScripts: ['admin'],
+      release,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
 
 exports.importRelease = async (req, res, next) => {
   if (!req.file) {
-    return res.status(400).render('admin/releases', {
-      title: 'Release management',
-      pageStyles: ['admin'],
-      pageScripts: ['admin'],
-      releases: mock.getReleases(),
-      error: 'No file uploaded.',
-      success: null,
-    });
+    try {
+      await renderReleasesPage(res.status(400), { error: 'No file uploaded.' });
+      return;
+    } catch (error) {
+      return next(error);
+    }
   }
 
   let parsed;
   try {
     parsed = parseReleasePackage(req.file.buffer, req.file.originalname);
   } catch (err) {
-    return res.status(400).render('admin/releases', {
-      title: 'Release management',
-      pageStyles: ['admin'],
-      pageScripts: ['admin'],
-      releases: mock.getReleases(),
-      error: err.message,
-      success: null,
-    });
+    try {
+      await renderReleasesPage(res.status(400), { error: err.message });
+      return;
+    } catch (error) {
+      return next(error);
+    }
   }
 
   const errors = validateRelease(parsed);
   if (errors.length) {
-    return res.status(422).render('admin/releases', {
-      title: 'Release management',
-      pageStyles: ['admin'],
-      pageScripts: ['admin'],
-      releases: mock.getReleases(),
-      error: errors.join(' | '),
-      success: null,
-    });
+    try {
+      await renderReleasesPage(res.status(422), { error: errors.join(' | ') });
+      return;
+    } catch (error) {
+      return next(error);
+    }
   }
 
   let transactionCallbackCompleted = false;
@@ -130,7 +151,7 @@ exports.importRelease = async (req, res, next) => {
       transactionCallbackCompleted = true;
     }, { timeout: 60000 });
 
-    return renderReleasesPage(res, {
+    return await renderReleasesPage(res, {
       success: `Release ${parsed.manifest.release_id} imported with status "needs_review".`,
     });
   } catch (err) {
@@ -143,5 +164,120 @@ exports.importRelease = async (req, res, next) => {
     }
     console.error(err);
     return next(err);
+  }
+};
+
+exports.publishRelease = async (req, res, next) => {
+  const releaseId = req.params.releaseId;
+  const actorId = req.user ? req.user.id : null;
+
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const release = await transaction.content_releases.findUnique({
+        where: { id: releaseId },
+        select: {
+          status: true,
+          notes_approval_status: true,
+          assessment_approval_status: true,
+          publish_at: true,
+        },
+      });
+      if (!release) {
+        const error = new Error('Release not found.');
+        error.status = 404;
+        throw error;
+      }
+
+      const notesApproved =
+        release.notes_approval_status === 'approved' ||
+        release.notes_approval_status === 'n/a';
+      if (
+        release.status !== 'approved' ||
+        !notesApproved ||
+        release.assessment_approval_status !== 'approved'
+      ) {
+        const error = new Error('Only fully approved releases can be published.');
+        error.status = 409;
+        throw error;
+      }
+
+      const publishAt = new Date();
+      await transaction.content_releases.update({
+        where: { id: releaseId },
+        data: {
+          status: 'published',
+          publish_at: publishAt,
+        },
+      });
+      await transaction.audit_events.create({
+        data: {
+          actor_id: actorId,
+          action: 'content_release.published',
+          target_type: 'content_release',
+          target_id: releaseId,
+          before_data: {
+            status: release.status,
+            publish_at: release.publish_at,
+          },
+          after_data: {
+            status: 'published',
+            publish_at: publishAt.toISOString(),
+          },
+          reason: null,
+        },
+      });
+    });
+
+    return await renderReleasesPage(res, {
+      success: 'Release published successfully.',
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.retireRelease = async (req, res, next) => {
+  const releaseId = req.params.releaseId;
+  const actorId = req.user ? req.user.id : null;
+
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const release = await transaction.content_releases.findUnique({
+        where: { id: releaseId },
+        select: { status: true },
+      });
+      if (!release) {
+        const error = new Error('Release not found.');
+        error.status = 404;
+        throw error;
+      }
+      if (release.status !== 'published') {
+        const error = new Error('Only published releases can be retired.');
+        error.status = 409;
+        throw error;
+      }
+
+      await transaction.content_releases.update({
+        where: { id: releaseId },
+        data: { status: 'retired' },
+      });
+      await transaction.audit_events.create({
+        data: {
+          actor_id: actorId,
+          action: 'content_release.retired',
+          target_type: 'content_release',
+          target_id: releaseId,
+          before_data: { status: release.status },
+          after_data: { status: 'retired' },
+          reason: null,
+        },
+      });
+    });
+
+    return await renderReleasesPage(res, {
+      success: 'Release retired successfully.',
+    });
+  } catch (error) {
+    return next(error);
   }
 };

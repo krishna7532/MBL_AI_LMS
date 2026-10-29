@@ -1,0 +1,21 @@
+<%- include('../layouts/header') %>
+
+<div class="admin-header page-header">
+  <div>
+    <h1 class="page-title"><%= note.stableId %></h1>
+    <p class="page-subtitle">
+      <%= note.courseName %> (<%= note.courseCode %>) ·
+      Version <%= note.version %> ·
+      <%= fmt.label(note.status) %>
+    </p>
+  </div>
+  <a class="btn btn-secondary" href="/admin/content">Back to revision notes</a>
+</div>
+
+<article class="card">
+  <div class="card-body">
+    <%- note.html %>
+  </div>
+</article>
+
+<%- include('../layouts/footer') %>

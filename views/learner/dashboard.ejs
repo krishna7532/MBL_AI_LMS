@@ -43,11 +43,10 @@
     <h2 class="section-title">Weekly sprints</h2>
 
     <% data.weeks.forEach(function (week) { %>
-      <% if (week.state === 'current' || week.state === 'published') { %>
+      <% if (week.state === 'published') { %>
         <details class="week-block"<%= week.state === 'current' ? ' open' : '' %>>
           <summary>
             <span class="week-title">Week <%= week.number %></span>
-            <% if (week.state === 'current') { %><span class="badge badge-primary">Current week</span><% } %>
             <span class="week-meta"><%= week.sprints.filter(function (s) { return s.status === 'completed'; }).length %> of <%= week.sprints.length %> completed</span>
           </summary>
           <div class="week-body">
@@ -56,14 +55,6 @@
             <% }) %>
           </div>
         </details>
-      <% } else if (week.state === 'locked') { %>
-        <div class="week-block week-locked">
-          <div class="week-title-row">
-            <span class="week-title">Week <%= week.number %></span>
-            <span class="badge badge-muted"><%- icon('lock', 12) %> Locked</span>
-          </div>
-          <p class="text-secondary text-small">Published <%= fmt.date(week.publishedAt) %>, before your trial started on <%= fmt.date(week.trialStart) %>. Trial access covers content published inside your trial window.</p>
-        </div>
       <% } else { %>
         <div class="week-block week-upcoming">
           <div class="week-title-row">

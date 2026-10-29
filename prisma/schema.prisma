@@ -394,6 +394,7 @@ model revision_notes {
   release_id       String           @db.Uuid
   course_id        String           @db.Uuid
   markdown         String
+  approval_status  String           @default("draft") @db.VarChar(50)
   taxonomy_node_id String?          @db.Uuid
   courses          courses          @relation(fields: [course_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   content_releases content_releases @relation(fields: [release_id], references: [id], onDelete: NoAction, onUpdate: NoAction)

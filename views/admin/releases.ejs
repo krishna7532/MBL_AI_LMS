@@ -50,7 +50,7 @@
       <div class="release-meta">
         <span><%= fmt.label(r.releaseType) %><%= r.weekNumber ? ', week ' + r.weekNumber : r.month ? ', month ' + r.month : '' %></span>
         <span>Version <%= r.version %></span>
-        <span><%= r.publishedAt ? 'Published ' + fmt.dateTime(r.publishedAt) : 'Not published' %></span>
+        <span><%= r.publishedAt ? (r.status === 'published' ? 'Published ' : 'Scheduled for ') + fmt.dateTime(r.publishedAt) : 'Not published' %></span>
         <span>Checksum: <%= r.checksum || 'not generated' %></span>
       </div>
     </div>
@@ -74,11 +74,15 @@
   </ul>
 
   <div class="release-actions">
-    <button type="button" class="btn btn-secondary btn-sm" data-preview-action="Release preview opens in Stage 2.">Preview</button>
+    <a class="btn btn-secondary btn-sm" href="/admin/releases/<%= encodeURIComponent(r.id) %>/preview">Preview</a>
     <% if (r.status === 'published') { %>
-      <button type="button" class="btn btn-danger btn-sm btn-retire">Retire</button>
+      <form method="post" action="/admin/releases/<%= encodeURIComponent(r.id) %>/retire">
+        <button type="submit" class="btn btn-danger btn-sm btn-retire">Retire</button>
+      </form>
     <% } else { %>
-      <button type="button" class="btn btn-primary btn-sm btn-publish"<%= allOk ? '' : ' disabled aria-describedby="blocked-' + r._id + '"' %>>Publish</button>
+      <form method="post" action="/admin/releases/<%= encodeURIComponent(r.id) %>/publish">
+        <button type="submit" class="btn btn-primary btn-sm btn-publish"<%= allOk ? '' : ' disabled aria-describedby="blocked-' + r._id + '"' %>>Publish</button>
+      </form>
       <% if (!allOk) { %><span class="text-secondary text-small" id="blocked-<%= r._id %>">Publishing is blocked until every validation check passes.</span><% } %>
     <% } %>
   </div>

@@ -1,0 +1,84 @@
+<%- include('../layouts/header') %>
+
+<div class="admin-header page-header">
+  <div>
+    <h1 class="page-title"><%= assessment.questionId %></h1>
+    <p class="page-subtitle">
+      <%= assessment.courseName %> (<%= assessment.courseCode %>) ·
+      Version <%= assessment.version %> ·
+      <%= fmt.label(assessment.approvalStatus) %>
+    </p>
+  </div>
+  <a class="btn btn-secondary" href="/admin/assessments">Back to assessments</a>
+</div>
+
+<section class="card mb-4" aria-label="Question details">
+  <div class="card-body">
+    <p><strong>Format:</strong> <%= fmt.label(assessment.responseFormat) %></p>
+    <p><strong>Question type:</strong> <%= fmt.label(assessment.questionType) %></p>
+    <p><strong>Exam role:</strong> <%= fmt.label(assessment.examRole) %></p>
+    <p><strong>Section:</strong> <%= fmt.label(assessment.section) %></p>
+    <p><strong>Marks:</strong> <%= assessment.marks %></p>
+    <p><strong>Concepts:</strong> <%= assessment.concepts.join(', ') || '—' %></p>
+    <p><strong>Origin:</strong> <%= fmt.label(assessment.origin) %></p>
+    <% if (assessment.learnerBadge) { %><p><strong>Learner badge:</strong> <%= assessment.learnerBadge %></p><% } %>
+    <p><strong>Pattern confidence:</strong> <%= fmt.label(assessment.patternConfidence) %></p>
+  </div>
+</section>
+
+<% if (assessment.passage) { %>
+<section class="card mb-4" aria-label="Shared passage">
+  <div class="card-body">
+    <h2 class="section-title">Shared passage</h2>
+    <p class="text-secondary text-small"><%= assessment.passage.stableId %> · Version <%= assessment.passage.version %></p>
+    <%- assessment.passage.html %>
+  </div>
+</section>
+<% } %>
+
+<article class="card mb-4">
+  <div class="card-body">
+    <h2 class="section-title">Question</h2>
+    <%- assessment.promptHtml %>
+
+    <% if (assessment.options.length) { %>
+    <h3 class="section-title mt-3">Options</h3>
+    <ol>
+      <% assessment.options.forEach(function (option) { %>
+      <li>
+        <strong><%= option.id %>.</strong>
+        <%= option.text %>
+        <% if (assessment.correctOptionIds.includes(option.id)) { %>
+          <span class="badge badge-success">Correct answer</span>
+        <% } %>
+      </li>
+      <% }) %>
+    </ol>
+    <% } %>
+
+    <% if (assessment.explanationHtml) { %>
+    <h3 class="section-title mt-3">Explanation</h3>
+    <%- assessment.explanationHtml %>
+    <% } %>
+  </div>
+</article>
+
+<% if (assessment.rubric && assessment.rubric.length) { %>
+<section class="card mb-4">
+  <div class="card-body">
+    <h2 class="section-title">Rubric</h2>
+    <pre><%= JSON.stringify(assessment.rubric, null, 2) %></pre>
+  </div>
+</section>
+<% } %>
+
+<% if (assessment.expectedAnswerPoints && assessment.expectedAnswerPoints.length) { %>
+<section class="card mb-4">
+  <div class="card-body">
+    <h2 class="section-title">Expected answer points</h2>
+    <pre><%= JSON.stringify(assessment.expectedAnswerPoints, null, 2) %></pre>
+  </div>
+</section>
+<% } %>
+
+<%- include('../layouts/footer') %>

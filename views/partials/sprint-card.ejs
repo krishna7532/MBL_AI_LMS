@@ -1,6 +1,6 @@
 <%
   const st = fmt.sprintState(s.status);
-  const href = sprintHref(s);
+  const href = `/weekly/${s.id}`;
   const primary = s.status === 'not_started' || s.status === 'notes_completed' || s.status === 'test_in_progress';
 %>
 <div class="sprint-card" data-href="<%= href %>">

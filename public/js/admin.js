@@ -91,19 +91,6 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // ── Release actions ──
-  document.querySelectorAll('.btn-publish').forEach(function (btn) {
-    btn.addEventListener('click', function (e) {
-      e.preventDefault();
-      window.showToast('Preview only. Publishing is recorded in Stage 2. Nothing was published.', 'info');
-    });
-  });
-  document.querySelectorAll('.btn-retire').forEach(function (btn) {
-    btn.addEventListener('click', function (e) {
-      e.preventDefault();
-      window.showToast('Preview only. Retiring a release is recorded in Stage 2. Nothing was changed.', 'info');
-    });
-  });
-
   // ── Settings form ──
   var settingsForm = document.getElementById('adminSettingsForm');
   if (settingsForm) {

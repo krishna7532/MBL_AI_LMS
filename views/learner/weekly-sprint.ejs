@@ -141,7 +141,7 @@
 
 <%
   // Learner-safe payload: options and prompts only. No correct answers or explanations (PRD §15.1).
-  const clientData = { sprintId: s._id, mcqs: page.mcqs, subjectiveMax: page.limits.subjectiveMaxChars, resultUrl: '/results/attempt_preview' };
+  const clientData = { sprintId: s.id || s._id, mcqs: page.mcqs, subjectiveMax: page.limits.subjectiveMaxChars, resultUrl: '/results/attempt_preview' };
 %>
 <script type="application/json" id="mcqData"><%- fmt.json(clientData) %></script>
 <% } %>

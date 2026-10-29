@@ -1,0 +1,116 @@
+<%- include('../layouts/header') %>
+
+<div class="admin-header page-header">
+  <div>
+    <h1 class="page-title"><%= release.releaseId %></h1>
+    <p class="page-subtitle">
+      <%= fmt.label(release.releaseType) %> ·
+      <%= release.academicYear %> ·
+      Program year <%= release.programYear %> ·
+      Version <%= release.version %> ·
+      <%= fmt.label(release.status) %>
+    </p>
+  </div>
+  <a class="btn btn-secondary" href="/admin/releases">Back to releases</a>
+</div>
+
+<section class="card mb-4" aria-label="Release details">
+  <div class="card-body">
+    <% if (release.weekNumber) { %><p><strong>Week:</strong> <%= release.weekNumber %></p><% } %>
+    <% if (release.month) { %><p><strong>Month:</strong> <%= release.month %></p><% } %>
+    <p><strong>Published or scheduled:</strong> <%= release.publishedAt ? fmt.dateTime(release.publishedAt) : 'Not published' %></p>
+    <p><strong>Notes approval:</strong> <%= fmt.label(release.notesApproval || 'draft') %></p>
+    <p><strong>Assessment approval:</strong> <%= fmt.label(release.assessmentApproval || 'draft') %></p>
+    <p><strong>Checksum:</strong> <%= release.checksum || 'Not generated' %></p>
+  </div>
+</section>
+
+<section class="mb-4" aria-labelledby="releaseNotesHeading">
+  <h2 id="releaseNotesHeading" class="section-title">Revision notes (<%= release.notes.length %>)</h2>
+  <% if (!release.notes.length) { %>
+    <p class="text-secondary">This release has no revision notes.</p>
+  <% } %>
+  <% release.notes.forEach(function (note) { %>
+  <article class="card mb-3">
+    <div class="card-body">
+      <h3 class="section-title"><%= note.stableId %></h3>
+      <p class="text-secondary text-small"><%= note.courseName %> (<%= note.courseCode %>) · Version <%= note.version %></p>
+      <%- note.html %>
+    </div>
+  </article>
+  <% }) %>
+</section>
+
+<section aria-labelledby="releaseAssessmentsHeading">
+  <h2 id="releaseAssessmentsHeading" class="section-title">Assessments (<%= release.assessments.length %>)</h2>
+  <% if (!release.assessments.length) { %>
+    <p class="text-secondary">This release has no assessments.</p>
+  <% } %>
+  <% release.assessments.forEach(function (assessment) { %>
+  <article class="card mb-4">
+    <div class="card-body">
+      <h3 class="section-title"><%= assessment.title || assessment.id %></h3>
+      <p class="text-secondary text-small">
+        <%= assessment.courseName %> (<%= assessment.courseCode %>) ·
+        <%= fmt.label(assessment.type) %> ·
+        <%= fmt.label(assessment.status) %>
+      </p>
+
+      <% if (!assessment.items.length) { %>
+        <p class="text-secondary">This assessment has no questions.</p>
+      <% } %>
+      <% assessment.items.forEach(function (item) { %>
+      <section class="mb-4" aria-label="Question <%= item.order %>">
+        <h4 class="section-title">
+          <%= fmt.label(item.section) %> ·
+          <%= item.questionId %> v<%= item.version %>
+          <% if (item.questionNumber) { %> · Question <%= item.questionNumber %><% } %>
+        </h4>
+        <p class="text-secondary text-small">
+          <%= fmt.label(item.responseFormat) %> ·
+          <%= fmt.label(item.questionType) %> ·
+          <%= item.marks %> marks ·
+          <%= item.compulsory ? 'Compulsory' : 'Optional' %>
+        </p>
+
+        <% if (item.passage) { %>
+        <section class="card mb-3" aria-label="Shared passage">
+          <div class="card-body">
+            <p class="text-secondary text-small"><%= item.passage.stableId %> · Version <%= item.passage.version %></p>
+            <%- item.passage.html %>
+          </div>
+        </section>
+        <% } %>
+
+        <%- item.promptHtml %>
+        <% if (item.options.length) { %>
+        <ol>
+          <% item.options.forEach(function (option) { %>
+          <li>
+            <strong><%= option.id %>.</strong>
+            <%= option.text %>
+            <% if (item.correctOptionIds.includes(option.id)) { %><span class="badge badge-success">Correct answer</span><% } %>
+          </li>
+          <% }) %>
+        </ol>
+        <% } %>
+        <% if (item.explanationHtml) { %>
+        <h5 class="section-title mt-3">Explanation</h5>
+        <%- item.explanationHtml %>
+        <% } %>
+        <% if (item.rubric.length) { %>
+        <h5 class="section-title mt-3">Rubric</h5>
+        <pre><%= JSON.stringify(item.rubric, null, 2) %></pre>
+        <% } %>
+        <% if (item.expectedAnswerPoints.length) { %>
+        <h5 class="section-title mt-3">Expected answer points</h5>
+        <pre><%= JSON.stringify(item.expectedAnswerPoints, null, 2) %></pre>
+        <% } %>
+      </section>
+      <% }) %>
+    </div>
+  </article>
+  <% }) %>
+</section>
+
+<%- include('../layouts/footer') %>

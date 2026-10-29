@@ -26,12 +26,21 @@
           <td><%= c.courseName %></td>
           <td><%= c.weekNumber %></td>
           <td>v<%= c.version %></td>
-          <td><%= fmt.label(c.source) %></td>
+          <td><%= c.source ? fmt.label(c.source) : '—' %></td>
           <td><span class="badge <%= fmt.approvalClass(c.approvalStatus) %>"><%= fmt.label(c.approvalStatus) %></span></td>
           <td class="text-small"><%= fmt.dateTime(c.lastUpdated) %></td>
           <td class="admin-table-actions">
-            <button type="button" class="btn btn-sm btn-secondary" data-preview-action="Note preview opens in Stage 2.">Preview</button>
-            <% if (c.approvalStatus !== 'approved') { %><button type="button" class="btn btn-sm btn-primary" data-preview-action="Approval is recorded in Stage 2. Nothing was changed.">Approve notes</button><% } %>
+            <a
+              class="btn btn-sm btn-secondary"
+              href="/admin/content/<%= encodeURIComponent(c.id) %>/preview"
+            >
+              Preview
+            </a>
+            <% if (c.approvalStatus !== 'approved') { %>
+                   <form method="post" action="/admin/content/<%= encodeURIComponent(c.id) %>/approve">
+                   <button type="submit" class="btn btn-sm btn-primary">Approve notes</button>
+                   </form>
+            <% } %>
           </td>
         </tr>
         <% }) %>

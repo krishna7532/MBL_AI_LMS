@@ -14,8 +14,8 @@
       <h2 class="course-title"><a href="/courses/<%= c.code %>"><%= c.name %></a></h2>
       <p class="text-secondary text-small"><%= c.description %></p>
       <div class="course-progress">
-        <div class="course-progress-header"><span><%= c.completedModules %> of <%= c.totalModules %> modules revised</span><span><%= c.progress %>%</span></div>
-        <div class="progress-bar" role="progressbar" aria-label="<%= c.name %> modules revised" aria-valuenow="<%= c.progress %>" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill" style="width: <%= c.progress %>%"></div></div>
+        <div class="course-progress-header"><span><%= c.completedModules %> of <%= c.totalModules %> weekly sprints completed</span><span><%= c.progress %>%</span></div>
+        <div class="progress-bar" role="progressbar" aria-label="<%= c.name %> weekly sprints completed" aria-valuenow="<%= c.progress %>" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill" style="width: <%= c.progress %>%"></div></div>
       </div>
     </div>
     <div class="card-footer flex-between">

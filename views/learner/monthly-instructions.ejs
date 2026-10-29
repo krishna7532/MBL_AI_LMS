@@ -1,4 +1,11 @@
 <%- include('../layouts/header') %>
+<%
+  const instructions = patternRule && patternRule.rule_value;
+  const mcqScoring = instructions && instructions.mcq_scoring;
+  const partA = sim.sections.partA;
+  const partB = sim.sections.partB;
+  const partC = sim.sections.partC;
+%>
 <nav class="breadcrumb" aria-label="Breadcrumb">
   <a href="/monthly">Monthly Revision</a><span aria-hidden="true">/</span><span aria-current="page"><%= sim.courseName %></span>
 </nav>
@@ -12,37 +19,50 @@
       <caption class="visually-hidden">Simulation structure</caption>
       <thead><tr><th scope="col">Section</th><th scope="col">Composition</th><th scope="col">Marks</th></tr></thead>
       <tbody>
-        <tr><td>Part A</td><td>5 shared passages, 5 linked MCQs each, 2 marks per MCQ</td><td>50</td></tr>
-        <tr><td>Part B</td><td>3 scenario or application questions, 10 marks each</td><td>30</td></tr>
-        <tr><td>Part C</td><td>2 doctrinal or critical questions, 10 marks each</td><td>20</td></tr>
-        <tr><th scope="row">Total</th><td>30 compulsory response items</td><th>100</th></tr>
+        <tr><td>Part A</td><td><%= partA.passages %> shared passages, <%= partA.mcqsPerPassage %> linked MCQs each, <%= partA.marksPerMcq %> marks per MCQ</td><td><%= partA.total %></td></tr>
+        <tr><td>Part B</td><td><%= partB.questions %> scenario or application questions</td><td><%= partB.total %></td></tr>
+        <tr><td>Part C</td><td><%= partC.questions %> doctrinal or critical questions</td><td><%= partC.total %></td></tr>
+        <tr><th scope="row">Total</th><td><%= (partA.passages * partA.mcqsPerPassage) + partB.questions + partC.questions %> compulsory response items</td><th><%= sim.totalMarks %></th></tr>
       </tbody>
     </table>
   </div>
 
   <h2 class="section-title">Instructions</h2>
-  <ul class="instruction-list">
-    <li>Enter question and sub-part numbers correctly.</li>
-    <li>Write briefly and logically.</li>
-    <li>Cite relevant case law.</li>
-    <li>Clearly state any additional factual assumptions.</li>
-    <li>All questions in this simulation are compulsory.</li>
-    <li>MCQs score +2 for a correct answer. Wrong or unanswered MCQs score 0. There is no negative marking.</li>
-    <li>Your answers save automatically.</li>
-  </ul>
+  <% if (instructions) { %>
+    <ul class="instruction-list">
+      <% if (instructions.question_numbering) { %><li><%= instructions.question_numbering %></li><% } %>
+      <% if (instructions.answer_style) { %><li><%= instructions.answer_style %></li><% } %>
+      <% if (instructions.case_law) { %><li><%= instructions.case_law %></li><% } %>
+      <% if (instructions.factual_assumptions) { %><li><%= instructions.factual_assumptions %></li><% } %>
+      <% if (instructions.compulsory_questions) { %><li>All questions are compulsory.</li><% } %>
+      <% if (mcqScoring) { %>
+        <li>MCQs score <%= mcqScoring.correct %> for a correct answer, <%= mcqScoring.wrong %> for a wrong answer, and <%= mcqScoring.unanswered %> if unanswered. <%= mcqScoring.negative_marking ? 'Negative marking applies.' : 'There is no negative marking.' %></li>
+      <% } %>
+      <% if (instructions.autosave) { %><li>Your answers save automatically.</li><% } %>
+    </ul>
 
-  <div class="exam-warning" role="note">
-    <span aria-hidden="true"><%- icon('clock', 22) %></span>
-    <div>
-      <strong>The three-hour timer can't be paused.</strong>
-      It keeps running if you leave the page or lose your connection. When time runs out, your saved answers are submitted automatically.
-    </div>
-  </div>
+    <% if (instructions.timer_paused === false) { %>
+      <div class="exam-warning" role="note">
+        <span aria-hidden="true"><%- icon('clock', 22) %></span>
+        <div>
+          <strong>The <%= Math.floor(instructions.duration_minutes / 60) %>-hour timer can't be paused.</strong>
+          <% if (instructions.auto_submit_on_timeout) { %> When time runs out, your saved answers are submitted automatically.<% } %>
+        </div>
+      </div>
+    <% } %>
 
-  <p class="text-secondary text-small mb-3"><%= constants.SIMULATION_PATTERN_NOTICE %></p>
+    <p class="text-secondary text-small mb-3">
+      Exam-pattern configuration: <%= fmt.label(patternRule.confidence || 'unknown') %>
+      <% if (patternRule.source) { %> · Source: <%= patternRule.source %><% } %>
+      <% if (patternRule.effective_cohort) { %> · Cohort: <%= patternRule.effective_cohort %><% } %>
+      · Version <%= patternRule.version %>
+    </p>
+  <% } else { %>
+    <p class="alert alert-warning">Exam instructions are not configured in the database.</p>
+  <% } %>
 
   <% if (hasPlayer) { %>
-  <form method="get" action="/monthly/<%= sim._id %>/attempt" class="sim-start-form">
+  <form method="get" action="/monthly/<%= sim.id %>/attempt" class="sim-start-form">
     <div class="form-check mb-3">
       <input class="form-check-input" type="checkbox" id="confirmTimer" required>
       <label class="form-check-label" for="confirmTimer">I understand the timer runs for 180 continuous minutes and can't be paused.</label>
@@ -56,8 +76,7 @@
   </div>
   <% } else { %>
   <div class="alert alert-warning">
-    <span><% if (sim.status === 'not_released') { %>This simulation hasn't been released yet.<% } else { %>Stage 1 has playable mock content for the Contract Law simulation only.<% } %></span>
-    <a class="btn btn-sm btn-secondary" href="/monthly/sim_m02_C01">Open Contract Law simulation</a>
+    <span>The database-backed monthly simulation player is not connected yet.</span>
   </div>
   <% } %>
 </div>
