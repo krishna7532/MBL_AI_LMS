@@ -128,27 +128,31 @@ exports.monthlyInstructions = async (req, res, next) => {
       pageScripts: ['assessment'],
       sim,
       patternRule,
-      hasPlayer: false,
+      hasPlayer: true,
     });
   } catch (error) {
     return next(error);
   }
 };
 
-exports.monthlyAttempt = (req, res, next) => {
-  const sim = mock.getSimulationPlayer(req.params.simId);
-  if (!sim) return next();
-  // `?demoMinutes=` lets a reviewer see the expiry behaviour without waiting three hours. Stage 1 only.
-  const demo = parseInt(req.query.demoMinutes, 10);
-  const durationMinutes = demo >= 1 && demo <= 180 ? demo : sim.durationMinutes;
-  res.render('learner/monthly-attempt', {
-    title: `${sim.courseName} — Simulation`,
-    layout: 'focus',
-    pageStyles: assess,
-    pageScripts: ['timer', 'assessment'],
-    sim,
-    durationMinutes,
-  });
+exports.monthlyAttempt = async (req, res, next) => {
+  try {
+    const sim = await mock.getSimulationPlayer(req.params.simId);
+    if (!sim) return next();
+    // `?demoMinutes=` lets a reviewer see the expiry behaviour without waiting three hours. Stage 1 only.
+    const demo = parseInt(req.query.demoMinutes, 10);
+    const durationMinutes = demo >= 1 && demo <= sim.durationMinutes ? demo : sim.durationMinutes;
+    return res.render('learner/monthly-attempt', {
+      title: `${sim.courseName} — Simulation`,
+      layout: 'focus',
+      pageStyles: assess,
+      pageScripts: ['timer', 'assessment'],
+      sim,
+      durationMinutes,
+    });
+  } catch (error) {
+    return next(error);
+  }
 };
 
 exports.results = (req, res) => {

@@ -46,7 +46,9 @@
     <div class="modal-body"><div id="simSubmitSummary"></div></div>
     <div class="modal-footer">
       <button type="button" class="btn btn-secondary" data-modal-close>Keep working</button>
-      <button type="button" class="btn btn-primary" id="confirmSimSubmit">Submit exam</button>
+      <form>
+        <button type="button" class="btn btn-primary" id="confirmSimSubmit">Submit exam</button>
+      </form>
     </div>
   </div>
 </div>
@@ -56,8 +58,8 @@
   <div class="modal-content">
     <div class="modal-header"><h2 id="timeUpTitle" class="modal-title">Time is up</h2></div>
     <div class="modal-body">
-      <p>Your saved answers are submitted automatically when time runs out.</p>
-      <p class="text-secondary text-small mt-2">Stage 1 preview: nothing was submitted or scored.</p>
+      <p>This preview does not submit your answers automatically when time runs out.</p>
+      <p class="text-secondary text-small mt-2">Your answers remain saved on this device. Nothing is submitted to the server or scored.</p>
     </div>
     <div class="modal-footer"><button type="button" class="btn btn-primary" id="timeUpContinue">Continue</button></div>
   </div>

@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * assessment.js — weekly sprint player and monthly simulation player (Stage 1, mock).
+ * assessment.js — weekly sprint player and monthly simulation player (Stage 1 preview).
  *
  * SECURITY NOTE: the original version scored MCQs in the browser using an `isCorrect` flag,
  * which would ship answer keys to the client (PRD §15.1 / SEC-01). This version receives

@@ -406,6 +406,138 @@ exports.getMonthlyAssessments = async () => {
     });
 };
 
+exports.getMonthlySimulationByAssessmentId = async (assessmentId) => {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assessmentId)) {
+        return null;
+    }
+
+    const assessment = await prisma.assessments.findFirst({
+        where: {
+            id: assessmentId,
+            type: 'monthly',
+            status: 'approved',
+            content_releases: {
+                is: {
+                    release_type: 'monthly',
+                    status: 'published',
+                },
+            },
+        },
+        select: {
+            id: true,
+            title: true,
+            assessment_blueprints: {
+                select: {
+                    duration_minutes: true,
+                    section_configuration: true,
+                },
+            },
+            courses: {
+                select: {
+                    display_name: true,
+                },
+            },
+            assessment_items: {
+                orderBy: { item_order: 'asc' },
+                select: {
+                    section: true,
+                    item_order: true,
+                    passage_id: true,
+                    passages: {
+                        select: {
+                            stable_id: true,
+                            passage_text: true,
+                        },
+                    },
+                    questions: {
+                        select: {
+                            id: true,
+                            question_number: true,
+                            response_format: true,
+                            prompt_markdown: true,
+                            options: true,
+                            marks: true,
+                        },
+                    },
+                },
+            },
+        },
+    });
+
+    if (!assessment) return null;
+
+    const passages = new Map();
+    const subjectiveItems = [];
+    let questionNumber = 0;
+    for (const item of assessment.assessment_items) {
+        const question = item.questions;
+        if (item.section === 'mcq' && question.response_format !== 'subjective') {
+            const passageKey = item.passage_id || 'unlinked';
+            if (!passages.has(passageKey)) {
+                const number = passages.size + 1;
+                passages.set(passageKey, {
+                    id: passageKey === 'unlinked' ? `passage_${number}` : passageKey,
+                    number,
+                    title: item.passages?.stable_id || `Passage ${number}`,
+                    text: item.passages?.passage_text || '',
+                    isPlaceholder: false,
+                    questions: [],
+                });
+            }
+
+            questionNumber += 1;
+            passages.get(passageKey).questions.push({
+                id: question.id,
+                number: question.question_number || questionNumber,
+                prompt: question.prompt_markdown,
+                options: Array.isArray(question.options)
+                    ? question.options.map((option) => ({
+                        id: String(option.id),
+                        text: String(option.text),
+                    }))
+                    : [],
+            });
+        } else if (item.section === 'subjective' || question.response_format === 'subjective') {
+            subjectiveItems.push(item);
+        }
+    }
+
+    const sectionConfiguration =
+        assessment.assessment_blueprints.section_configuration || {};
+    const configuredPartBCount = Number(sectionConfiguration.part_b_count);
+    const partBCount = Number.isFinite(configuredPartBCount) && configuredPartBCount >= 0
+        ? configuredPartBCount
+        : Math.ceil(subjectiveItems.length / 2);
+    const toWrittenQuestion = (item, index, sectionLabel) => ({
+        id: item.questions.id,
+        number: item.questions.question_number || index + 1,
+        label: `${sectionLabel}${index + 1}`,
+        prompt: item.questions.prompt_markdown,
+        marks: Number(item.questions.marks),
+    });
+    const partB = subjectiveItems.slice(0, partBCount)
+        .map((item, index) => toWrittenQuestion(item, index, 'B'));
+    const partC = subjectiveItems.slice(partBCount)
+        .map((item, index) => toWrittenQuestion(item, index, 'C'));
+
+    const totalMarks = assessment.assessment_items.reduce(
+        (total, item) => total + Number(item.questions.marks),
+        0
+    );
+
+    return {
+        id: assessment.id,
+        title: assessment.title || 'Monthly Assessment',
+        courseName: assessment.courses.display_name,
+        durationMinutes: assessment.assessment_blueprints.duration_minutes,
+        totalMarks,
+        partA: [...passages.values()],
+        partB,
+        partC,
+        limits: { subjectiveMaxChars: 4000, assumptionsMaxChars: 500 },
+    };
+};
+
 exports.getExamPatternRule = async (ruleKey) =>
     prisma.exam_pattern_rules.findFirst({
         where: { rule_key: ruleKey },

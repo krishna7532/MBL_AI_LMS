@@ -366,52 +366,8 @@ exports.getExamPatternRule = (ruleKey) => learnerQueries.getExamPatternRule(rule
 exports.getSimulationSummary = (id) => exports.getMonthly().find((s) => s.id === id) || null;
 
 /** Learner-safe simulation payload. No answers, explanations or rubrics. */
-exports.getSimulationPlayer = (id) => {
-  const summary = exports.getSimulationSummary(id);
-  if (!summary || summary._id !== 'sim_m02_C01') return null;
-
-  const realPassage = d.simulationPassages[0];
-  const partA = [];
-  let qNo = 0;
-  for (let p = 1; p <= 5; p++) {
-    const src = p === 1 ? realPassage : null;
-    partA.push({
-      id: src ? src._id : `passage_placeholder_${p}`,
-      number: p,
-      title: src ? src.title : `Passage ${p}`,
-      text: src
-        ? src.text
-        : 'Placeholder passage. Stage 1 mock data contains one full passage; the remaining four passages appear here only so the 5 × 5 layout can be previewed. Real passages arrive with content releases (PRD §9.7).',
-      isPlaceholder: !src,
-      questions: Array.from({ length: 5 }, (_, i) => {
-        qNo += 1;
-        const q = src ? src.questions[i] : null;
-        return {
-          id: q ? q._id : `placeholder_q_${qNo}`,
-          number: qNo,
-          prompt: q ? q.prompt : `Placeholder question ${qNo} for passage ${p}.`,
-          options: q
-            ? q.options.map((o) => ({ id: o.id, text: o.text }))
-            : ['A', 'B', 'C', 'D'].map((o) => ({ id: o, text: `Placeholder option ${o}` })),
-        };
-      }),
-    });
-  }
-
-  const flat = (arr) => arr.map((q) => ({ id: q._id, number: q.questionNumber, label: q.sectionLabel, prompt: q.prompt, marks: q.marks }));
-
-  return {
-    id: summary._id,
-    title: summary.title,
-    courseName: summary.courseName,
-    durationMinutes: summary.duration,
-    totalMarks: summary.totalMarks,
-    partA,
-    partB: flat(d.simulationPartB),
-    partC: flat(d.simulationPartC),
-    limits: { subjectiveMaxChars: 4000, assumptionsMaxChars: 500 },
-  };
-};
+exports.getSimulationPlayer = (assessmentId) =>
+  learnerQueries.getMonthlySimulationByAssessmentId(assessmentId);
 
 // ── Leaderboards ─────────────────────────────────────────────────────────────
 
