@@ -7,6 +7,9 @@
   <p class="auth-subtitle"><%= constants.INSTITUTION_LINE %></p>
 
   <p class="auth-notice"><%= constants.INDEPENDENCE_NOTICE %></p>
+  <% if (accessMessage) { %>
+  <p class="auth-notice" role="status"><%= accessMessage %></p>
+  <% } %>
 
   <a href="/auth/google" class="google-btn" id="googleSignIn">
     <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true" focusable="false">
@@ -20,7 +23,7 @@
 
   <div class="auth-divider"><span>New here?</span></div>
 
-  <a class="btn btn-outline btn-block" href="/apply">Apply for a 14-day trial</a>
+  <a class="btn btn-outline btn-block" href="/auth/google">Apply for a 14-day trial</a>
   <p class="auth-footer">Access is by approval only. An admin reviews every application before your trial starts.</p>
 </div>
 <%- include('../layouts/footer') %>

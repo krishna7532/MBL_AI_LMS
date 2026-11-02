@@ -18,7 +18,7 @@
           <td><%= r.title %></td>
           <td><span class="badge <%= r.kind === 'monthly' ? 'badge-info' : 'badge-primary' %>"><%= r.kind === 'monthly' ? 'Monthly simulation' : 'Weekly sprint' %></span></td>
           <td><%= fmt.dateTime(r.submittedAt) %></td>
-          <td><strong><%= r.earned %>/<%= r.max %></strong></td>
+          <td><strong><%= r.earned %>/<%= r.max %></strong><% if (r.evaluationPending) { %><br><span class="text-secondary text-small">MCQ score; written evaluation pending</span><% } %></td>
           <td><a class="btn btn-sm btn-secondary" href="/results/<%= r._id %>">Review</a></td>
         </tr>
         <% }) %>

@@ -1,6 +1,8 @@
 'use strict';
 
-require('dotenv').config();
+const path = require('node:path');
+
+require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
 module.exports = {
   env: process.env.NODE_ENV || 'development',

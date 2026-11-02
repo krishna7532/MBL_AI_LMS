@@ -1,37 +1,140 @@
 <%- include('../layouts/header') %>
+<%
+  const programYearLabel = course.programYear === 'Y1'
+    ? 'Year 1'
+    : course.programYear === 'Y2'
+      ? 'Year 2'
+      : course.programYear;
+  const academicYearLabel = course.academicYear
+    ? (/^academic year/i.test(course.academicYear)
+      ? course.academicYear
+      : `Academic Year ${course.academicYear}`)
+    : null;
+%>
+
 <nav class="breadcrumb" aria-label="Breadcrumb">
-  <a href="/courses">Courses</a><span aria-hidden="true">/</span><span aria-current="page"><%= course.name %></span>
+  <a href="/courses">Courses</a>
+  <span aria-hidden="true">/</span>
+  <span aria-current="page"><%= course.name %></span>
 </nav>
 
-<div class="page-header">
+<header class="course-detail-header">
   <div>
     <span class="course-code"><%= course.code %></span>
     <h1 class="page-title"><%= course.name %></h1>
-    <p class="page-subtitle"><%= course.programYear %></p>
-  </div>
-</div>
-
-<h2 class="section-title">Published weekly sprints</h2>
-<% if (course.sprints.length) { %>
-  <div class="admin-table">
-    <div class="table-responsive">
-      <table class="table">
-        <caption class="visually-hidden">Published weekly sprints for <%= course.name %></caption>
-        <thead><tr><th scope="col">Week</th><th scope="col">Sprint</th><th scope="col">Published</th><th scope="col">Your status</th></tr></thead>
-        <tbody>
-          <% course.sprints.forEach(function (sprint) { %>
-          <tr>
-            <td><%= sprint.weekNumber || '—' %></td>
-            <td><%= sprint.title %></td>
-            <td><%= sprint.publishedAt ? fmt.dateTime(sprint.publishedAt) : '—' %></td>
-            <td><span class="badge <%= fmt.approvalClass(sprint.status) %>"><%= fmt.label(sprint.status) %></span></td>
-          </tr>
-          <% }) %>
-        </tbody>
-      </table>
+    <div class="course-detail-meta">
+      <% if (programYearLabel) { %><span><%= programYearLabel %></span><% } %>
+      <% if (programYearLabel && academicYearLabel) { %><span aria-hidden="true">·</span><% } %>
+      <% if (academicYearLabel) { %><span><%= academicYearLabel %></span><% } %>
     </div>
   </div>
-<% } else { %>
-  <div class="empty-state"><p class="empty-state-title">No sprints published yet</p><p class="empty-state-text">Weekly sprints appear here after they are published.</p></div>
-<% } %>
+</header>
+
+<section class="course-stats stats-grid" aria-label="Course statistics">
+  <article class="stat-card course-stat-card">
+    <div class="stat-header">
+      <span class="stat-label">Total Weeks</span>
+      <span class="course-stat-icon course-stat-icon--weeks"><%- icon('layers', 20) %></span>
+    </div>
+    <p class="stat-value"><%= course.stats.totalWeeks %></p>
+    <p class="course-stat-caption">In this academic year</p>
+  </article>
+  <article class="stat-card course-stat-card">
+    <div class="stat-header">
+      <span class="stat-label">Published</span>
+      <span class="course-stat-icon course-stat-icon--published"><%- icon('calendar', 20) %></span>
+    </div>
+    <p class="stat-value"><%= course.stats.published %></p>
+    <p class="course-stat-caption">Available to you</p>
+  </article>
+  <article class="stat-card course-stat-card">
+    <div class="stat-header">
+      <span class="stat-label">Completed</span>
+      <span class="course-stat-icon course-stat-icon--completed"><%- icon('chart', 20) %></span>
+    </div>
+    <p class="stat-value"><%= course.stats.completedPercent %><span class="course-stat-percent">%</span></p>
+    <p class="course-stat-caption">Of published sprints</p>
+  </article>
+</section>
+
+<section class="course-sprints-section" aria-labelledby="course-sprints-title">
+  <div class="course-sprints-heading">
+    <div>
+      <h2 class="section-title" id="course-sprints-title">Weekly learning sprints</h2>
+      <p class="course-sprints-description">Build your understanding one week at a time.</p>
+    </div>
+  </div>
+
+  <% if (course.sprints.length) { %>
+    <div class="course-sprints-list">
+      <% course.sprints.forEach(function (sprint) {
+        const isPublished = sprint.publicationStatus === 'published';
+        const progressStatus = isPublished ? sprint.progressStatus : 'upcoming';
+        const progressLabel = progressStatus === 'completed'
+          ? 'Completed'
+          : progressStatus === 'in_progress'
+            ? 'In progress'
+            : progressStatus === 'upcoming'
+              ? 'Upcoming'
+              : 'Not started';
+        const actionLabel = progressStatus === 'completed'
+          ? 'View Results'
+          : progressStatus === 'in_progress'
+            ? 'Continue Assessment'
+            : 'Start Assessment';
+      %>
+        <article class="course-sprint-card">
+          <header class="course-sprint-header">
+            <div class="course-sprint-heading">
+              <span class="course-sprint-week">
+                <%= sprint.weekNumber ? `Week ${sprint.weekNumber}` : 'Weekly sprint' %>
+              </span>
+              <h3 class="course-sprint-title"><%= sprint.title %></h3>
+            </div>
+            <span class="course-status-badge course-status-badge--<%= sprint.publicationStatus %>">
+              <span class="course-status-dot" aria-hidden="true"></span>
+              <%= isPublished ? 'Published' : 'Upcoming' %>
+            </span>
+          </header>
+
+          <div class="course-sprint-details">
+            <p class="course-sprint-date">
+              <span aria-hidden="true"><%- icon('calendar', 16) %></span>
+              <%= sprint.publishedAt ? fmt.dateTime(sprint.publishedAt) : 'Publication date to be announced' %>
+            </p>
+          </div>
+
+          <div class="course-sprint-progress">
+            <div class="course-sprint-progress-copy">
+              <div class="course-sprint-progress-label">Your progress</div>
+              <span class="course-progress-badge course-progress-badge--<%= progressStatus %>">
+                <%= progressLabel %>
+              </span>
+              <p class="course-sprint-message"><%= sprint.progressMessage %></p>
+            </div>
+            <% if (isPublished && sprint.id) { %>
+              <a class="course-assessment-button"
+                 href="/weekly/<%= encodeURIComponent(sprint.id) %>">
+                <%= actionLabel %>
+                <%- icon('arrowRight', 16) %>
+              </a>
+            <% } else { %>
+              <button class="course-assessment-button course-assessment-button--disabled"
+                      type="button" disabled aria-disabled="true">
+                Coming Soon
+              </button>
+            <% } %>
+          </div>
+        </article>
+      <% }) %>
+    </div>
+  <% } else { %>
+    <div class="course-sprints-empty">
+      <span class="course-empty-icon" aria-hidden="true"><%- icon('layers', 28) %></span>
+      <h3>No sprints published yet</h3>
+      <p>Weekly learning sprints will appear here once they are published.</p>
+    </div>
+  <% } %>
+</section>
+
 <%- include('../layouts/footer') %>

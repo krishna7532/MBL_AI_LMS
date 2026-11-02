@@ -1,22 +1,24 @@
 'use strict';
 
 const prisma = require('../config/db');
-require('../routes/admin');
 
+// Filter condition for applicants waiting for administrative review
 const pendingApprovalWhere = {
   account_state: 'pending_approval',
   // consents: { some: { consent_type: 'terms', withdrawn_at: null } },
   // AND: [{ consents: { some: { consent_type: 'privacy', withdrawn_at: null } } }],
 };
 
+// Aggregates high-level counts for the admin dashboard summary cards
 exports.getDashboardStats = async () => {
-  const [totalUsers, pendingApprovals, activeTrials, paidLearners, expiredLearners] =
+  const [totalUsers, pendingApprovals, activeTrials, paidLearners, expiredLearners, evaluationsPending] =
     await Promise.all([
       prisma.users.count(),
       prisma.users.count({ where: pendingApprovalWhere }),
       prisma.users.count({ where: { account_state: 'trial_active' } }),
       prisma.users.count({ where: { account_state: 'paid_active' } }),
       prisma.users.count({ where: { account_state: 'trial_expired' } }),
+      prisma.evaluations.count({ where: { state: 'pending' } }),
     ]);
 
   return {
@@ -25,21 +27,25 @@ exports.getDashboardStats = async () => {
     active_trials: activeTrials,
     paid_learners: paidLearners,
     expired_learners: expiredLearners,
+    evaluationsPending,
   };
 };
 
+// Returns all applicants currently awaiting admin approval
 exports.getPendingApprovals = async () =>
   prisma.users.findMany({
     where: pendingApprovalWhere,
     orderBy: { created_at: 'asc' },
   });
 
+// Looks up the primary admin publisher user ID
 exports.getAdmin = async () =>
   prisma.users.findFirst({
     where: { role: 'admin_publisher' },
     select: { id: true },
   });
 
+// Lists all learners with their active trials, subscriptions, and leaderboard profiles
 exports.getAllUser = async () =>
   prisma.users.findMany({
     where: { role: { notIn: ['admin_publisher', 'content_editor'] } },
@@ -60,9 +66,10 @@ exports.getAllUser = async () =>
     },
   });
 
+// Lists all revision notes with approval status across courses and releases
 exports.getAllRevisionNotes = async () =>
   prisma.revision_notes.findMany({
-    orderBy: { created_at: 'asc' },
+    orderBy: { created_at: 'desc' },
     select: {
       id: true,
       created_at: true,
@@ -87,9 +94,10 @@ exports.getAllRevisionNotes = async () =>
     },
   });
 
+// Lists all assessment questions and sections for admin content management
 exports.getAllAssessment = async () =>
   prisma.assessment_items.findMany({
-    orderBy: { created_at: 'asc' },
+    orderBy: { created_at: 'desc' },
     select: {
       section: true,
       questions: {
@@ -116,6 +124,7 @@ exports.getAllAssessment = async () =>
     },
   });
 
+// Fetches full details of a specific question including options, rubric, and passage
 exports.getAssessmentQuestionById = async (id) =>
   prisma.questions.findUnique({
     where: { id },
@@ -167,6 +176,7 @@ exports.getAssessmentQuestionById = async (id) =>
     },
   });
 
+// Lists content releases with note and assessment approval counts
 exports.getAllReleases = async () =>
   prisma.content_releases.findMany({
     orderBy: { created_at: 'desc' },
@@ -199,6 +209,7 @@ exports.getAllReleases = async () =>
     },
   });
 
+// Retrieves detailed release data including notes, passages, and assessment items
 exports.getReleaseById = async (id) =>
   prisma.content_releases.findUnique({
     where: { id },
@@ -282,6 +293,7 @@ exports.getReleaseById = async (id) =>
     },
   });
 
+// Retrieves chronological audit logs showing administrative actions and changes
 exports.getAllAuditEvent = async () =>
   prisma.audit_events.findMany({
     orderBy: { created_at: 'desc' },
@@ -331,6 +343,7 @@ exports.getRevisionNoteById = async (id) =>
     },
   });
 
+  // Fetches prompt and options preview for a specific assessment item
   exports.getAllAssessmentById=async (id)=>
     prisma.assessment_items.findUnique({
       where:{id},
@@ -350,21 +363,27 @@ exports.getRevisionNoteById = async (id) =>
       },
     }
     })
+
+// Loads basic names for a list of user IDs
 exports.getUsersByIds = async (userIds) =>
   prisma.users.findMany({
     where: { id: { in: userIds } },
     select: { id: true, name: true },
   });
 
+// Lists all active and inactive courses
 exports.getAllCourse=async ()=>
       prisma.courses.findMany({
         orderBy:{created_at:'asc'}
  });
 
+// Lists all content releases chronologically
 exports.getAllContent=async ()=>
         prisma.content_releases.findMany({
          orderBy :{created_at: 'asc'}
  });
+
+// Executes approval or rejection of an applicant, creates a 14-day trial if approved, and records audit event
 exports.decidePendingUser = async (prismaTransaction, userId, adminId, decision, reason) => {
   const nextAccountState = decision === 'approved' ? 'trial_active' : 'rejected';
   const previousUser = await prismaTransaction.users.findUnique({

@@ -14,7 +14,6 @@
 </head>
 <body class="layout-<%= layout %> <%= bodyClass %>"<% if (user && user.leaderboardAlias && !isAdminArea) { %> data-user-alias="<%= user.leaderboardAlias %>"<% } %>>
 <a class="skip-link" href="#main">Skip to main content</a>
-<%- include('../partials/stage-banner') %>
 <% if (layout === 'app') { %>
   <%- include('../partials/navbar') %>
   <div class="app-layout" id="appLayout">

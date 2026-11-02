@@ -32,9 +32,14 @@
     <div class="stat-change"><%= data.monthlyFeatured.courseName %>, 3 hours</div>
   </div>
   <div class="stat-card">
-    <div class="stat-header"><span class="stat-label">Trial</span><span class="stat-icon"><%- icon('clock') %></span></div>
-    <div class="stat-value"><%= trial.daysRemaining %> days left</div>
-    <div class="stat-change">Ends <%= fmt.date(trial.endDate) %></div>
+    <div class="stat-header"><span class="stat-label"><%= subscription ? 'Paid access' : 'Trial' %></span><span class="stat-icon"><%- icon('clock') %></span></div>
+    <% if (subscription) { %>
+    <div class="stat-value"><%= subscription.plans.code === 'completion' ? 'Completion Plan' : 'Annual Plan' %></div>
+    <div class="stat-change">Active through <%= fmt.date(subscription.ends_at) %></div>
+    <% } else { %>
+    <div class="stat-value"><%= trial && trial.isActive ? `${trial.daysRemaining} days left` : 'No active subscription' %></div>
+    <div class="stat-change"><% if (trial && trial.isActive) { %>Ends <%= fmt.date(trial.endDate) %><% } else { %><a href="/profile#plans">View plans</a><% } %></div>
+    <% } %>
   </div>
 </div>
 

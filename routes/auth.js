@@ -4,16 +4,26 @@ const express = require('express');
 const router = express.Router();
 const passport = require('passport');
 const c = require('../controllers/authController');
+const authPolicy = require('../services/authPolicy');
+const requireAuthenticated = require('../middleware/routeAccess').requireAuthenticated;
 
+// Keeps the application form available only to signed-in applicants awaiting review.
+function requireApplicant(req, res, next) {
+  if (req.user.role === 'applicant' && req.user.accountState === 'pending_approval') {
+    return next();
+  }
+  return res.redirect(authPolicy.getPostLoginPath(req.user));
+}
+
+// Public entry and login views
 router.get('/', c.root);
 router.get('/login', c.login);
-router.get('/apply', c.apply);
-router.post('/apply', (req, res, next) => {
-  if (req.isAuthenticated && req.isAuthenticated() && req.user && req.user.id) return next();
-  return res.redirect('/login');
-}, c.submitApplication);
-router.get('/pending', c.pending);
-router.get('/rejected', c.rejected);
+
+// Learner application submission and status pages
+router.get('/apply', requireAuthenticated, requireApplicant, c.apply);
+router.post('/apply', requireAuthenticated, requireApplicant, c.submitApplication);
+router.get('/pending', requireAuthenticated, c.pending);
+router.get('/rejected', requireAuthenticated, c.rejected);
 
 //for authentication
 router.get(
@@ -27,23 +37,10 @@ router.get(
 router.get(
   '/auth/google/callback',
   passport.authenticate('google', { failureRedirect: '/login' }),
-  (req, res) => {
-    const accountState = req.user.accountState;
-
-    if(accountState==='pending_approval'){
-      return res.redirect('/pending');
-    }
-    if(accountState==='rejected' || accountState==='suspended'){
-      return res.redirect('/rejected');
-    }
-   if(accountState==='trial_active' || accountState==='paid_active'){
-    return res.redirect('/dashboard');
-   }
-    // Keep the current success destination:
-    return res.redirect('/apply');
-  }
+  c.googleCallback
 );
 
+// Clears the Passport login session and returns the user to sign-in.
 router.get('/logout', (req, res, next) => {
   req.logout((error) => {
     if (error) return next(error);

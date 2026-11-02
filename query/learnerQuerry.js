@@ -2,15 +2,18 @@
 
 const prisma = require('../config/db');
 
+// Lists courses assigned to the first program year.
 exports.getFirstYearCourses=async()=>
     prisma.courses.findMany({
         where:{program_year:'Y1'}
     });
+// Lists courses assigned to the second program year.
 exports.getSecondYearCourses=async()=>
     prisma.courses.findMany({
         where:{program_year:'Y2'}
     });
 
+// Loads the current academic year's weekly sprints and this learner's attempt state.
 exports.getCourseByCode = async (code, userId) => {
     const course = await prisma.courses.findUnique({
         where: { code },
@@ -26,20 +29,31 @@ exports.getCourseByCode = async (code, userId) => {
                     content_releases: {
                         is: {
                             release_type: 'weekly',
-                            status: 'published',
+                            status: { notIn: ['superseded', 'retired'] },
                         },
                     },
+                    status: { not: 'retired' },
                 },
                 orderBy: { created_at: 'asc' },
                 select: {
                     id: true,
                     title: true,
+                    status: true,
                     release_id: true,
+                    academic_years: {
+                        select: {
+                            id: true,
+                            label: true,
+                            active: true,
+                            starts_at: true,
+                        },
+                    },
                     content_releases: {
                         select: {
                             release_id: true,
                             week_number: true,
                             publish_at: true,
+                            status: true,
                         },
                     },
                 },
@@ -48,36 +62,117 @@ exports.getCourseByCode = async (code, userId) => {
     });
     if (!course) return null;
 
-    const assessmentIds = course.assessments.map((assessment) => assessment.id);
+    const academicYears = [...new Map(
+        course.assessments.map((assessment) => [
+            assessment.academic_years.id,
+            assessment.academic_years,
+        ])
+    ).values()].sort((a, b) => {
+        if (a.active !== b.active) return a.active ? -1 : 1;
+        return new Date(b.starts_at) - new Date(a.starts_at);
+    });
+    const academicYear = academicYears[0] || null;
+    const assessments = academicYear
+        ? course.assessments.filter(
+            (assessment) => assessment.academic_years.id === academicYear.id
+        )
+        : [];
+    const now = new Date();
+    const sprints = assessments.map((assessment) => {
+        const release = assessment.content_releases;
+        const published = assessment.status === 'approved' &&
+            release.status === 'published' &&
+            release.publish_at &&
+            new Date(release.publish_at) <= now;
+
+        return {
+            id: published ? assessment.id : null,
+            weekNumber: release.week_number,
+            title: published
+                ? (assessment.title || release.release_id)
+                : 'Sprint details available after publication',
+            publishedAt: ['published', 'scheduled'].includes(release.status)
+                ? release.publish_at
+                : null,
+            publicationStatus: published ? 'published' : 'upcoming',
+            progressStatus: 'not_started',
+        };
+    });
+    const assessmentIds = sprints
+        .filter((sprint) => sprint.id)
+        .map((sprint) => sprint.id);
     const attempts = userId && assessmentIds.length
         ? await prisma.attempts.findMany({
             where: {
                 user_id: userId,
                 assessment_id: { in: assessmentIds },
-                submitted_at: { not: null },
+                OR: [
+                    { state: 'in_progress' },
+                    { submitted_at: { not: null } },
+                ],
             },
-            select: { assessment_id: true },
-            distinct: ['assessment_id'],
+            select: { assessment_id: true, state: true, submitted_at: true },
         })
         : [];
-    const completedAssessmentIds = new Set(attempts.map((attempt) => attempt.assessment_id));
+    const attemptsByAssessment = new Map();
+    for (const attempt of attempts) {
+        const progress = attemptsByAssessment.get(attempt.assessment_id) || {
+            inProgress: false,
+            completed: false,
+        };
+        progress.inProgress ||= attempt.state === 'in_progress';
+        progress.completed ||= Boolean(attempt.submitted_at);
+        attemptsByAssessment.set(attempt.assessment_id, progress);
+    }
+
+    for (const sprint of sprints) {
+        if (!sprint.id) continue;
+        const progress = attemptsByAssessment.get(sprint.id);
+        if (progress?.completed) sprint.progressStatus = 'completed';
+        else if (progress?.inProgress) sprint.progressStatus = 'in_progress';
+    }
+
+    sprints.sort((a, b) => {
+        if (a.weekNumber === null || a.weekNumber === undefined) return 1;
+        if (b.weekNumber === null || b.weekNumber === undefined) return -1;
+        return a.weekNumber - b.weekNumber;
+    });
+
+    const publishedSprints = sprints.filter(
+        (sprint) => sprint.publicationStatus === 'published'
+    );
+    const completedSprints = publishedSprints.filter(
+        (sprint) => sprint.progressStatus === 'completed'
+    ).length;
 
     return {
         id: course.id,
         code: course.code,
         name: course.display_name,
         programYear: course.program_year,
+        academicYear: academicYear?.label || null,
         active: course.active,
-        sprints: course.assessments.map((assessment) => ({
-            id: assessment.id,
-            title: assessment.title || assessment.content_releases.release_id,
-            weekNumber: assessment.content_releases.week_number,
-            publishedAt: assessment.content_releases.publish_at,
-            status: completedAssessmentIds.has(assessment.id) ? 'completed' : 'not_started',
+        sprints: sprints.map((sprint) => ({
+            ...sprint,
+            progressMessage: sprint.publicationStatus !== 'published'
+                ? 'This sprint will be available after publication.'
+                : sprint.progressStatus === 'completed'
+                    ? 'You have completed this assessment.'
+                    : sprint.progressStatus === 'in_progress'
+                        ? 'Continue your assessment to complete this sprint.'
+                        : 'Start your assessment to track your progress.',
         })),
+        stats: {
+            totalWeeks: sprints.length,
+            published: publishedSprints.length,
+            completedPercent: publishedSprints.length
+                ? Math.round((completedSprints / publishedSprints.length) * 100)
+                : 0,
+        },
     };
 };
 
+// Calculates per-course published and completed weekly sprint counts.
 exports.getWeeklySprintProgress = async (userId) => {
     const assessments = await prisma.assessments.findMany({
         where: {
@@ -142,15 +237,18 @@ exports.getWeeklySprintProgress = async (userId) => {
 
 
 
-exports.getWeeklySprint = async (releaseId) => {
+// Loads all published weekly sprints belonging to a release.
+exports.getWeeklySprint = async (releaseId,userId) => {
     const assessments = await prisma.assessments.findMany({
         where: {
             release_id: releaseId,
             type: 'weekly',
+            status: 'approved',
             content_releases: {
                 is: {
                     release_type: 'weekly',
                     status: 'published',
+                    publish_at: { lte: new Date() },
                 },
             },
         },
@@ -158,6 +256,7 @@ exports.getWeeklySprint = async (releaseId) => {
         select: {
             id: true,
             title: true,
+            status: true,
             courses: {
                 select: {
                     id: true,
@@ -169,10 +268,22 @@ exports.getWeeklySprint = async (releaseId) => {
                     id:true,
                     week_number: true,
                     publish_at: true,
+                    status: true,
                 },
             },
+            ...(userId ? {
+                attempts: {
+                    where: {
+                        user_id: userId,
+                        submitted_at: { not: null },
+                    },
+                    select: { id: true },
+                    take: 1,
+                },
+            } : {}),
             assessment_items: {
                 select: {
+                    id: true,
                     section: true,
                     questions: {
                         select: { marks: true },
@@ -190,7 +301,9 @@ exports.getWeeklySprint = async (releaseId) => {
         weekNumber: assessment.content_releases?.week_number ?? null,
         weekday: 'Monday',
         title: assessment.title || '',
-        status: 'not_started',
+        status: assessment.attempts && assessment.attempts.length > 0
+            ? 'completed'
+            : 'not_started',
         bestScore: null,
         maxScore: assessment.assessment_items.reduce(
             (total, item) => total + Number(item.questions.marks),
@@ -202,6 +315,7 @@ exports.getWeeklySprint = async (releaseId) => {
     }));
 };
 
+// Lists weekly content releases for the weekly overview.
 exports.getAllWeekly=async ()=>
    prisma.content_releases.findMany({
        where:{release_type:'weekly'},
@@ -212,6 +326,7 @@ exports.getAllWeekly=async ()=>
         publish_at:true
        }
    });
+// Loads the approved revision note for a course and release.
 exports.getNoteByReleaseAndCourseId = async (releaseId, courseId) => {
     const note = await prisma.revision_notes.findFirst({
         where: {
@@ -237,6 +352,7 @@ exports.getNoteByReleaseAndCourseId = async (releaseId, courseId) => {
         weekNumber: note.content_releases?.week_number ?? null,
     };
 };
+// Returns safe summary details for one published weekly assessment.
 exports.getWeeklySprintByAssessmentId = async (assessmentId) => {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assessmentId)) {
         return null;
@@ -248,6 +364,7 @@ exports.getWeeklySprintByAssessmentId = async (assessmentId) => {
             id: true,
             title: true,
             type: true,
+            status: true,
             courses: {
                 select: {
                     id: true,
@@ -257,7 +374,6 @@ exports.getWeeklySprintByAssessmentId = async (assessmentId) => {
             content_releases: {
                 select: {
                     release_type: true,
-                    status: true,
                     status: true,
                     week_number: true,
                     publish_at: true,
@@ -269,8 +385,11 @@ exports.getWeeklySprintByAssessmentId = async (assessmentId) => {
     if (
         !assessment ||
         assessment.type !== 'weekly' ||
+        assessment.status !== 'approved' ||
         assessment.content_releases?.release_type !== 'weekly' ||
-        assessment.content_releases.status !== 'published'
+        assessment.content_releases.status !== 'published' ||
+        !assessment.content_releases.publish_at ||
+        new Date(assessment.content_releases.publish_at) > new Date()
     ) {
         return null;
     }
@@ -282,13 +401,16 @@ exports.getWeeklySprintByAssessmentId = async (assessmentId) => {
         weekNumber: assessment.content_releases.week_number,
         weekday: 'Monday',
         title: assessment.title || '',
-        status: 'not_started',
+        status: assessment.attempts.some((attempt) => attempt.state === 'submitted')
+  ? 'completed'
+  : 'not_started',
         bestScore: null,
         maxScore: 40,
         publishedAt: assessment.content_releases.publish_at,
     };
 };
 
+// Maps published monthly assessments and their configured scoring sections.
 exports.getMonthlyAssessments = async () => {
     const assessments = await prisma.assessments.findMany({
         where: {
@@ -332,6 +454,7 @@ exports.getMonthlyAssessments = async () => {
             assessment_items: {
                 orderBy: { item_order: 'asc' },
                 select: {
+                    id: true,
                     section: true,
                     passage_id: true,
                     questions: {
@@ -362,6 +485,7 @@ exports.getMonthlyAssessments = async () => {
         const partCCount = Number(sectionConfiguration.part_c_count) || 0;
         const partBItems = subjectiveItems.slice(0, partBCount);
         const partCItems = subjectiveItems.slice(partBCount, partBCount + partCCount);
+        // Totals marks for a particular monthly assessment section.
         const sectionMarks = (sectionItems) =>
             sectionItems.reduce((total, item) => total + Number(item.questions.marks), 0);
         const configuredTotal = Number(sectionConfiguration.max_score);
@@ -406,6 +530,7 @@ exports.getMonthlyAssessments = async () => {
     });
 };
 
+// Loads a published monthly simulation and maps its questions for the player.
 exports.getMonthlySimulationByAssessmentId = async (assessmentId) => {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assessmentId)) {
         return null;
@@ -440,6 +565,7 @@ exports.getMonthlySimulationByAssessmentId = async (assessmentId) => {
             assessment_items: {
                 orderBy: { item_order: 'asc' },
                 select: {
+                    id: true,
                     section: true,
                     item_order: true,
                     passage_id: true,
@@ -488,7 +614,9 @@ exports.getMonthlySimulationByAssessmentId = async (assessmentId) => {
             questionNumber += 1;
             passages.get(passageKey).questions.push({
                 id: question.id,
+                assessmentItemId: item.id,
                 number: question.question_number || questionNumber,
+                responseFormat: question.response_format,
                 prompt: question.prompt_markdown,
                 options: Array.isArray(question.options)
                     ? question.options.map((option) => ({
@@ -508,8 +636,10 @@ exports.getMonthlySimulationByAssessmentId = async (assessmentId) => {
     const partBCount = Number.isFinite(configuredPartBCount) && configuredPartBCount >= 0
         ? configuredPartBCount
         : Math.ceil(subjectiveItems.length / 2);
+    // Maps a subjective database item to the monthly player question shape.
     const toWrittenQuestion = (item, index, sectionLabel) => ({
         id: item.questions.id,
+        assessmentItemId: item.id,
         number: item.questions.question_number || index + 1,
         label: `${sectionLabel}${index + 1}`,
         prompt: item.questions.prompt_markdown,
@@ -538,6 +668,7 @@ exports.getMonthlySimulationByAssessmentId = async (assessmentId) => {
     };
 };
 
+// Retrieves the stored exam-pattern rule used by learner instructions.
 exports.getExamPatternRule = async (ruleKey) =>
     prisma.exam_pattern_rules.findFirst({
         where: { rule_key: ruleKey },

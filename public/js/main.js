@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * main.js — shared behaviour: navigation, dropdown, modals, toasts, preview helpers.
+ * main.js — shared behaviour: navigation, dropdown, modals, and toasts.
  * Adapted from the original main.js. Changes: aria state on toggles, focus-managed modals,
  * alerts no longer auto-dismiss unless opted in, unused/conflicting handlers removed.
  */
@@ -108,34 +108,6 @@
       if (e.shiftKey && (document.activeElement === first || document.activeElement === modal.querySelector('.modal-content'))) { e.preventDefault(); last.focus(); }
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     }
-  });
-
-  // ── Stage 1 preview helpers ───────────────────────────────────────────────
-  // Buttons that would change data in Stage 2 only explain that nothing happened.
-  document.addEventListener('click', function (e) {
-    var btn = e.target.closest('[data-preview-action]');
-    if (!btn) return;
-    e.preventDefault();
-    closeAllModals();
-    window.showToast('Preview only. ' + btn.getAttribute('data-preview-action'), 'info');
-  });
-
-  document.addEventListener('submit', function (e) {
-    var form = e.target.closest('[data-preview-form]');
-    if (!form) return;
-    e.preventDefault();
-    if (form.checkValidity && !form.checkValidity()) { form.reportValidity(); return; }
-    window.showToast('Preview only. ' + form.getAttribute('data-preview-form'), 'info');
-  });
-
-  // Clears device-local mock drafts / timers created by the Stage 1 assessment screens.
-  document.addEventListener('click', function (e) {
-    if (!e.target.closest('[data-reset-preview]')) return;
-    var removed = 0;
-    try {
-      Object.keys(localStorage).forEach(function (k) { if (k.indexOf('mbl_stage1_') === 0) { localStorage.removeItem(k); removed++; } });
-    } catch (err) { /* storage unavailable */ }
-    window.showToast(removed ? 'Preview attempt reset on this device.' : 'Nothing to reset.', 'success');
   });
 
   // ── Opt-in alert auto-dismiss (persistent notices stay visible) ───────────

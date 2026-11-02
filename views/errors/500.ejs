@@ -2,8 +2,7 @@
 <div class="empty-state">
   <div class="empty-state-icon" aria-hidden="true"><%- icon('alert', 40) %></div>
   <h1 class="empty-state-title">Something went wrong</h1>
-  <p class="empty-state-text">The page could not be loaded (error <%= status %>). Try again, or return to the dashboard.</p>
-  <% if (detail) { %><pre class="error-detail"><%= detail %></pre><% } %>
-  <a class="btn btn-primary" href="/dashboard">Go to dashboard</a>
+  <p class="empty-state-text">The page couldn't be loaded. Please try again later, or return to the dashboard.</p>
+  <a class="btn btn-primary" href="<%= typeof homeUrl !== 'undefined' && homeUrl ? homeUrl : '/dashboard' %>">Return</a>
 </div>
 <%- include('../layouts/footer') %>

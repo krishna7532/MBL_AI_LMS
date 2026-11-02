@@ -6,8 +6,8 @@
     <p class="auth-subtitle">We couldn't approve your application, so you can't access course content.</p>
   </div>
   <div class="consent-group">
-    <p class="form-label">Reason from the reviewer (sample)</p>
-    <p class="text-secondary text-small">Could not verify MBL enrollment.</p>
+    <p class="form-label"><%= reason || 'No reason provided' %></p>
+    <!-- <p class="text-secondary text-small">Could not verify MBL enrollment.</p> -->
   </div>
   <p class="auth-footer">If you think this is a mistake, contact the product owner. Support contact details will be listed here once confirmed.</p>
   <a class="btn btn-secondary btn-block mt-3" href="/login">Back to sign-in</a>

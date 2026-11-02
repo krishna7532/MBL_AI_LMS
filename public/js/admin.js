@@ -58,14 +58,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
       button.disabled = true;
       try {
-        var response = await fetch('/admin/users/' + encodeURIComponent(userId) + '/decision', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify(requestBody)
-        });
+        var response;
+        try {
+          response = await fetch('/admin/users/' + encodeURIComponent(userId) + '/decision', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+          });
+        } catch (networkError) {
+          throw new Error('Unable to connect right now. Check your connection and try again.');
+        }
 
         var result;
         try {
@@ -74,7 +79,9 @@ document.addEventListener('DOMContentLoaded', function () {
           throw new Error('The server returned an unreadable response.');
         }
         if (!response.ok) {
-          throw new Error(result && result.message ? result.message : 'The decision could not be saved.');
+          var requestError = new Error(result && result.message ? result.message : 'The decision could not be saved.');
+          requestError.userMessage = true;
+          throw requestError;
         }
 
         window.closeModal(modal.id);
@@ -84,19 +91,15 @@ document.addEventListener('DOMContentLoaded', function () {
         );
         window.setTimeout(function () { window.location.reload(); }, 1000);
       } catch (error) {
-        window.showToast(error.message || 'The decision request failed. Please try again.', 'danger');
+        window.showToast(
+          error && (error.userMessage || error.message === 'Unable to connect right now. Check your connection and try again.')
+            ? error.message
+            : 'The decision request failed. Please try again.',
+          'danger'
+        );
         button.disabled = false;
       }
     });
   });
 
-  // ── Release actions ──
-  // ── Settings form ──
-  var settingsForm = document.getElementById('adminSettingsForm');
-  if (settingsForm) {
-    settingsForm.addEventListener('submit', function (e) {
-      e.preventDefault();
-      window.showToast('Preview only. Saving creates a new version in Stage 2. Nothing was saved.', 'info');
-    });
-  }
 });

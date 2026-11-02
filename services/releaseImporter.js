@@ -3,6 +3,7 @@
 const AdmZip = require('adm-zip');
 const crypto = require('crypto');
 
+// Extracts and validates manifest, notes, questions, and passages from a ZIP release archive
 function parseZipPackage(buffer) {
   const zip = new AdmZip(buffer);
   const entries = zip.getEntries();
@@ -45,6 +46,7 @@ function parseZipPackage(buffer) {
   return { manifest, notes, questions, passages };
 }
 
+// Parses release components directly from a single uploaded JSON file
 function parseJsonPackage(buffer) {
   let doc;
   try {
@@ -64,6 +66,7 @@ function parseJsonPackage(buffer) {
   };
 }
 
+// Detects package format (.zip vs .json) and calls the matching parser
 function parseReleasePackage(buffer, originalFilename) {
   const name = originalFilename.toLowerCase();
   if (name.endsWith('.json')) return parseJsonPackage(buffer);
@@ -71,6 +74,7 @@ function parseReleasePackage(buffer, originalFilename) {
   throw new Error('Unsupported file type');
 }
 
+// Verifies question counts and rubric totals for a weekly content release
 function validateWeeklyRelease({ manifest, questions }) {
   const errors = [];
   const courses = manifest.courses || [];
@@ -92,6 +96,7 @@ function validateWeeklyRelease({ manifest, questions }) {
   return errors;
 }
 
+// Verifies passages, Part A/B/C question counts, and 100-mark totals for a monthly release
 function validateMonthlyRelease({ manifest, questions, passages }) {
   const errors = [];
   const courses = manifest.courses || [];
@@ -120,6 +125,7 @@ function validateMonthlyRelease({ manifest, questions, passages }) {
   return errors;
 }
 
+// Routes parsed package to the appropriate release type validator
 function validateRelease(parsed) {
   if (parsed.manifest.release_type === 'monthly') return validateMonthlyRelease(parsed);
   return validateWeeklyRelease(parsed); // default: weekly

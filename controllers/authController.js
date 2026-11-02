@@ -7,18 +7,25 @@ const auth = { layout: 'auth', pageStyles: ['auth'], pageScripts: ['auth'] };
 const prisma = require('../config/db');
 const userQueries = require('../query/userQueries');
 const consentQueries = require('../query/consentQueries');
+const authPolicy = require('../services/authPolicy');
 
+// Sends the root URL to the login page.
 exports.root = (req, res) => res.redirect(302, '/login');
 
+// Renders sign-in and displays any account access restriction.
 exports.login = (req, res) => {
   res.render('auth/login', {
     ...auth,
     title: 'Sign in',
     user: req.user || null,
     isAuthenticated: !!req.user,
+    accessMessage: req.query.access === 'restricted'
+      ? 'This account does not currently have access. Contact support if you believe this is an error.'
+      : null,
   });
 };
 
+// Renders the trial application form.
 exports.apply = (req, res) => {
   res.render('auth/apply', {
     ...auth,
@@ -28,10 +35,29 @@ exports.apply = (req, res) => {
     errorMessage: null,
   });
 };
-exports.pending = (req, res) => res.render('auth/pending', { ...auth, title: 'Application received' });
+// Shows confirmation that an application is awaiting review.
+exports.pending = (req, res) =>
+  res.render('auth/pending', { ...auth, title: 'Application received' });
 
-exports.rejected = (req, res) => res.render('auth/rejected', { ...auth, title: 'Application not approved' });
+// Redirects the signed-in user to the correct page after Google login.
+exports.googleCallback = (req, res) =>
+  res.redirect(authPolicy.getPostLoginPath(req.user));
 
+// Displays the latest rejection reason for the signed-in applicant.
+exports.rejected = async (req, res, next) => {
+  try {
+    const reason = await userQueries.getReason(prisma, req.user && req.user.id);
+    return res.render('auth/rejected', {
+      ...auth,
+      title: 'Application not approved',
+      reason,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// Validates and records a trial application and its required consents.
 exports.submitApplication = async (req, res, next) => {
   const phone = typeof req.body.phone === 'string' ? req.body.phone.trim() : '';
   const digits = phone.replace(/\D/g, '');

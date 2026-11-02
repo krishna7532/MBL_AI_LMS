@@ -1,7 +1,7 @@
 # MBL-AI LMS
 
 Express + EJS app for the MBL-AI learner and admin screens, per `docs/MBL_AI_LMS_Consolidated_PRD_v0.6.md`.
-Google OAuth identifies learners and stores their identity in PostgreSQL. Learners submit a phone number and both policy consents before their application enters the admin approval queue; other product screens remain a mock-data preview.
+Google OAuth identifies learners and stores their identity in PostgreSQL. Learners submit a phone number and both policy consents before their application enters the admin approval queue. Razorpay checkout uses database-backed plans and records verified payments and subscriptions in PostgreSQL.
 
 ## Run it
 
@@ -17,20 +17,20 @@ npm start
 
 Open http://localhost:3000 — it redirects to `/login`.
 
-The login page offers a Google sign-in button that redirects to Google and then to `/apply` after authentication. Configure `DATABASE_URL` for PostgreSQL. Existing installations can continue to use `DB_USER`, `DB_HOST`, `DB_NAME`, `DB_PASSWORD`, and `DB_PORT`; the application and Prisma commands convert them to a connection URL without logging credentials.
+The login page offers a Google sign-in button. New applicants go to `/apply`; existing accounts follow their database role and account state. Configure `DATABASE_URL` for PostgreSQL. Existing installations can continue to use `DB_USER`, `DB_HOST`, `DB_NAME`, `DB_PASSWORD`, and `DB_PORT`; the application and Prisma commands convert them to a connection URL without logging credentials.
 
-## What's real vs. mock
+## Application features
 
-- Real: Express routing, EJS templates/partials, Google OAuth identity persistence, the transactional learner application and consent flow, the CSS, the client-side interaction logic
-  (tab switching, MCQ/subjective drafting, the sprint and simulation players, leaderboard
-  filters, admin table search and modals), the safe Markdown renderer for revision notes.
-- Mock: all data. `services/mockService.js` is the only file that touches `services/mockData.js`
-  (a copy of the original `mockData.js`, extended with helpers for the pages the mock file
-  didn't originally cover — course detail, results, monthly players, leaderboard filtering).
-- Not implemented (Stage 2, per the PRD): server-side RBAC, PostgreSQL-backed product data beyond learner applications,
-  attempt persistence and scoring, AI evaluation, Razorpay, background jobs, transactional email,
-  and the server-authoritative exam timer. Every place this matters says so in the UI or in a
-  code comment (search for "STAGE 2").
+- Google OAuth, application and consent capture, administrator approvals, trial expiry,
+  role-based access, and learner/admin dashboards.
+- Database-backed courses, published assessments, weekly and monthly attempts, answer
+  autosave, objective scoring, persistent timers, and server-side expiry.
+- Database-backed payment plans and payment history, Razorpay order/signature checks,
+  webhook-driven subscription activation, and opt-in leaderboard scores.
+- Release import, preview, publication, revision notes, and audit history.
+- Subjective answers are persisted and shown as pending. This repository does not currently
+  contain a Gemini evaluation worker or service; installing the Gemini SDK alone does not
+  evaluate answers.
 
 ## Project layout
 
@@ -41,19 +41,19 @@ controllers/, routes/    thin controllers, one per area (auth / learner / admin)
 prisma/schema.prisma     introspected PostgreSQL schema and Prisma Client generator
 scripts/prisma.js        Prisma CLI wrapper for DATABASE_URL and legacy DB_* settings
 services/
-  mockData.js            original mock dataset (kept verbatim, minus module renaming)
-  mockService.js         the ONLY module controllers call for data; swap this for real
-                          services in Stage 2 without touching controllers or views
+  lmsDataService.js      maps Prisma-backed records for learner and admin views
+  examService.js         attempt persistence, scoring coordination, and expiry
+  paymentService.js      Razorpay orders, verification, and subscription activation
   format.js, icons.js, markdown.js   view helpers (fmt, icon, safe note renderer)
 middleware/
-  mockContext.js         STAGE 1 ONLY — injects a demo user, no session exists
+  viewContext.js         supplies shared template locals from the current request
 views/                   EJS templates (layouts/, partials/, auth/, learner/, admin/, errors/)
 public/                  css/, js/, images/ — served statically
 ```
 
 ## Prisma and PostgreSQL
 
-The project uses Prisma 6.19.0 with the PostgreSQL datasource and the `prisma-client-js` generator. The schema in `prisma/schema.prisma` was introspected from the existing database; it represents all 28 current public tables, enums, UUIDs, JSON/array/network fields, indexes, unique constraints, and foreign-key relationships. No user-defined public triggers were found. The four existing database check constraints (`academic_year_dates_valid`, `plan_price_valid`, `subscription_dates_valid`, and `trial_dates_valid`) are not expressible in Prisma Schema Language, so they are preserved in the checked-in baseline SQL.
+The project uses Prisma 6.19.0 with the PostgreSQL datasource and the `prisma-client-js` generator. The schema in `prisma/schema.prisma` models the existing public tables and adds an additive payment webhook event table. No user-defined public triggers were found. The four existing database check constraints (`academic_year_dates_valid`, `plan_price_valid`, `subscription_dates_valid`, and `trial_dates_valid`) are not expressible in Prisma Schema Language, so they are preserved in the checked-in baseline SQL.
 
 Set `DATABASE_URL` in `.env`, for example:
 
@@ -85,17 +85,51 @@ The checked-in `prisma/migrations/20261021110000_baseline_existing_database/migr
 
 Create and review development migrations against a disposable/local database. Back up production and review generated SQL before applying changes with `npm run prisma:migrate:deploy`. Do not run `migrate reset` or `db push` against a database containing data. No schema DDL was applied to the existing database as part of this change.
 
+## Razorpay test payments
+
+Set these backend-only values in the project-root `.env` (do not put secret values in frontend code). Replace every example value with credentials from your Razorpay Test Mode account; the placeholders do not work:
+
+```dotenv
+RAZORPAY_KEY_ID=your_test_key_id
+RAZORPAY_KEY_SECRET=your_test_key_secret
+RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
+```
+
+Use the test key ID and key secret from Razorpay's Test Mode. In the Razorpay Dashboard,
+create a webhook pointing to `https://<your-public-host>/api/payments/webhook`, configure
+the same webhook secret in `RAZORPAY_WEBHOOK_SECRET`, and subscribe to `payment.captured`
+and `payment.failed`. For local testing, expose the local server with a trusted HTTPS
+tunnel and configure that public tunnel URL as the webhook URL. Keep all three values in
+the server environment; only the key ID is returned to the browser for Checkout. The key
+ID and key secret must be a matching pair from the same Razorpay mode/account. Restart the
+Node server after changing `.env` so the credentials are loaded. Order creation requests
+use a client-generated idempotency key, so retrying the same request reuses the same
+Razorpay order instead of creating another one.
+
+The Account page reads active plans and prices from PostgreSQL. The existing `annual` and
+`completion` plan rows are ₹20,000 for one year and ₹35,000 for five years. Create orders
+from the Buy buttons in Razorpay Test Mode. After validating the Checkout signature, the
+server asks Razorpay for the payment status and activates access only after confirming the
+captured amount, currency, and order. The `payment.captured` webhook remains enabled as a
+reliable fallback and retry path; its event ID is stored uniquely to make retries safe.
+Reopening the Account page also reconciles earlier authorized checkouts, so a missed
+webhook does not require the learner to pay again.
+
+Apply the safe additive migration before starting the payment flow:
+
+```bash
+npm run prisma:migrate:deploy
+npm run prisma:generate
+```
+
+The migration adds payment-plan/payment-date columns and a webhook-event deduplication
+table. It preserves existing payment, subscription, plan, and user records.
+
 ## Known issues / incomplete by design
 
-- No form actually submits anywhere except learner application submission (leaderboard join, admin approve/reject/publish,
-  settings save). Every action either explains this inline or shows a "preview only" toast.
-- The exam timer is a per-browser `localStorage` countdown, not a server clock. Refreshing
-  keeps the same countdown; "Reset preview attempt" (on the simulation instructions page)
-  clears it. Append `?demoMinutes=1` to a simulation attempt URL to see expiry quickly.
-- Only one weekly sprint (Contract Law, Week 7) and one monthly simulation (Contract Law)
-  have full mock content, because that's what the source `mockData.js` supplied in depth.
-  Other sprints/courses show a clear "no preview content" state rather than fabricated
-  legal content.
-- Leaderboard scores for courses/weeks not in the original mock data are deterministically
-  generated (not random on every load) purely so the table has something to show; they are
-  clearly mock and not meant to be treated as real rankings data.
+- Leaderboard join/withdraw controls and settings edits are not yet persisted; rankings
+  themselves now read only opted-in database scores.
+- Subjective answer evaluation is not implemented. Submitted written answers remain pending
+  rather than receiving fabricated marks.
+- Notification storage has no read/unread field or notification-generation worker, so the
+  application displays persisted notification records without inventing demo alerts.

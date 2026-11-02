@@ -408,12 +408,6 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.875em; background: var(--background); padding: 0.05rem 0.3rem; border-radius: var(--radius-sm); border: 1px solid var(--border); }
 .error-detail { text-align: left; background: var(--background); padding: 1rem; border-radius: var(--radius-sm); overflow-x: auto; margin-bottom: 1rem; }
 
-/* Stage 1 preview banner (removed in Stage 2) */
-.stage-banner { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.25rem 1rem; padding: 0.375rem 1rem; background: #1f2937; color: #f9fafb; font-size: 0.8125rem; }
-.stage-banner a { color: #bfdbfe; margin-left: 1rem; }
-.stage-banner a:hover { color: #fff; }
-.stage-banner-links a:first-child { margin-left: 0; }
-
 /* Toasts */
 .toast-container { position: fixed; bottom: 1rem; right: 1rem; z-index: 300; display: flex; flex-direction: column; gap: 0.5rem; max-width: min(24rem, calc(100vw - 2rem)); }
 .toast { margin: 0; box-shadow: var(--shadow-md); gap: 0.75rem; background-color: var(--surface); border-color: var(--info); color: var(--text); }

@@ -1,32 +1,41 @@
 'use strict';
 
 /**
- * STAGE 1: every handler reads from services/mockService.js. There is no entitlement
- * check, attempt persistence, scoring or evaluation here — those are Stage 2.0
+ * Learner page handlers coordinate database-backed exam attempts and existing LMS pages.
  */
-const mock = require('../services/mockService');
+const dataService = require('../services/lmsDataService');
+const exams = require('../services/examService');
+const payments = require('../services/paymentService').service;
 
 const dash = ['dashboard'];
 const assess = ['assessment'];
 
+// Renders the dashboard with the learner's subscription and recent results.
 exports.dashboard = async (req, res, next) => {
   try {
-    const data = await mock.getDashboard();
+    const data = await dataService.getDashboard(req.user.id);
+    const [subscription, recentResults] = await Promise.all([
+      payments.getCurrentSubscription(req.user.id),
+      exams.listResults(req.user.id, 3),
+    ]);
+    data.recentResults = recentResults;
     return res.render('learner/dashboard', {
       title: 'Dashboard',
       pageStyles: dash,
       pageScripts: ['dashboard'],
       data,
-      sprintHref: mock.sprintHref,
+      subscription,
+      sprintHref: dataService.sprintHref,
     });
   } catch (error) {
     return next(error);
   }
 };
 
+// Displays courses and the learner's weekly sprint progress.
 exports.courses = async (req, res, next) => {
   try {
-    const courses = await mock.getCourses(req.user && req.user.id);
+    const courses = await dataService.getCourses(req.user && req.user.id);
     return res.render('learner/courses', {
       title: 'Courses',
       pageStyles: dash,
@@ -38,15 +47,17 @@ exports.courses = async (req, res, next) => {
   }
 };
 
+// Loads and renders one course's details.
 exports.courseDetail = async (req, res, next) => {
   try {
-    const course = await mock.getCourse(
+    const course = await dataService.getCourse(
       req.params.id.toUpperCase(),
       req.user && req.user.id
     );
     if (!course) return next();
     return res.render('learner/course-detail', {
       title: course.name,
+      bodyClass: 'course-detail-page',
       pageStyles: dash,
       pageScripts: ['dashboard'],
       course,
@@ -56,29 +67,38 @@ exports.courseDetail = async (req, res, next) => {
   }
 };
 
+// Shows published weekly releases and their sprint links.
 exports.weeklyIndex = async (req, res, next) => {
   try {
-    const weeks = await mock.getWeeklyOverview();
+    const weeks = await dataService.getWeeklyOverview();
     return res.render('learner/weekly-index', {
       title: 'Weekly revision sprints',
       pageStyles: dash,
       pageScripts: ['dashboard'],
       weeks,
-      sprintHref: mock.sprintHref,
+      sprintHref: dataService.sprintHref,
     });
   } catch (error) {
     return next(error);
   }
 };
 
+// Resumes or creates the learner's attempt before rendering a weekly sprint.
 exports.weeklySprint = async (req, res, next) => {
   try {
-    const page = await mock.getSprint(req.params.sprintId);
+    const page = await dataService.getSprint(req.params.sprintId);
     if (!page) return next();
+    if (!page.hasContent || !page.sprint.id) return next();
+    page.attempt = await exams.ensureAttempt(req.user.id, page.sprint.id, 'weekly', {
+      newAttempt: req.query.retake === '1',
+    });
+    if (page.attempt.state !== 'in_progress') {
+      return res.redirect(page.attempt.resultUrl);
+    }
     return res.render('learner/weekly-sprint', {
       title: `${page.sprint.courseName} — Week ${page.sprint.weekNumber}`,
       pageStyles: assess,
-      pageScripts: ['assessment'],
+      pageScripts: ['timer', 'assessment'],
       page,
     });
   } catch (error) {
@@ -86,9 +106,10 @@ exports.weeklySprint = async (req, res, next) => {
   }
 };
 
+// Groups published monthly assessments by release month.
 exports.monthlyIndex = async (req, res, next) => {
   try {
-    const sims = await mock.getMonthlyAssessments(req.user && req.user.id);
+    const sims = await dataService.getMonthlyAssessments(req.user && req.user.id);
     const monthsByNumber = new Map();
     for (const sim of sims) {
       const monthKey = sim.month === null || sim.month === undefined
@@ -115,11 +136,12 @@ exports.monthlyIndex = async (req, res, next) => {
   }
 };
 
+// Renders monthly exam instructions with the configured pattern rule.
 exports.monthlyInstructions = async (req, res, next) => {
   try {
     const [sim, patternRule] = await Promise.all([
-      mock.getMonthlyAssessmentSummary(req.params.simId),
-      mock.getExamPatternRule('monthly_exam_instructions'),
+      dataService.getMonthlyAssessmentSummary(req.params.simId),
+      dataService.getExamPatternRule('monthly_exam_instructions'),
     ]);
     if (!sim) return next();
     return res.render('learner/monthly-instructions', {
@@ -135,49 +157,113 @@ exports.monthlyInstructions = async (req, res, next) => {
   }
 };
 
+// Resumes or creates a monthly attempt and restores its saved answers.
 exports.monthlyAttempt = async (req, res, next) => {
   try {
-    const sim = await mock.getSimulationPlayer(req.params.simId);
+    const sim = await dataService.getSimulationPlayer(req.params.simId);
     if (!sim) return next();
-    // `?demoMinutes=` lets a reviewer see the expiry behaviour without waiting three hours. Stage 1 only.
-    const demo = parseInt(req.query.demoMinutes, 10);
-    const durationMinutes = demo >= 1 && demo <= sim.durationMinutes ? demo : sim.durationMinutes;
+    sim.attempt = await exams.ensureAttempt(req.user.id, sim.id, 'monthly', {
+      newAttempt: req.query.retake === '1',
+    });
+    if (sim.attempt.state !== 'in_progress') {
+      return res.redirect(sim.attempt.resultUrl);
+    }
+    sim.savedResponses = sim.attempt.savedResponses;
     return res.render('learner/monthly-attempt', {
       title: `${sim.courseName} — Simulation`,
       layout: 'focus',
       pageStyles: assess,
       pageScripts: ['timer', 'assessment'],
       sim,
-      durationMinutes,
+      durationMinutes: sim.durationMinutes,
     });
   } catch (error) {
     return next(error);
   }
 };
 
-exports.results = (req, res) => {
-  res.render('learner/results', { title: 'Results', pageStyles: assess.concat(dash), results: mock.getResults() });
+// Lists the learner's persisted exam results.
+exports.results = async (req, res, next) => {
+  try {
+    const results = await exams.listResults(req.user.id);
+    return res.render('learner/results', {
+      title: 'Results',
+      pageStyles: assess.concat(dash),
+      results,
+    });
+  } catch (error) {
+    return next(error);
+  }
 };
 
-exports.resultDetail = (req, res, next) => {
-  const result = mock.getResult(req.params.id);
-  if (!result) return next();
-  res.render('learner/result-detail', { title: 'Result', pageStyles: assess, result });
+// Renders a learner-owned database result or a legacy mock result.
+exports.resultDetail = async (req, res, next) => {
+  try {
+    let result;
+    try {
+      result = await exams.getAttemptResult(req.user.id, req.params.id);
+    } catch (error) {
+      if (error.code === 'RESULT_NOT_FOUND' || error.code === 'INVALID_ID') return next();
+      throw error;
+    }
+    if (!result) return next();
+    return res.render('learner/result-detail', {
+      title: 'Result',
+      pageStyles: assess,
+      result,
+    });
+  } catch (error) {
+    return next(error);
+  }
 };
 
-exports.leaderboard = (req, res) => {
-  res.render('learner/leaderboard', {
-    title: 'Leaderboard',
-    pageStyles: dash.concat(['assessment']),
-    pageScripts: ['leaderboard'],
-    lb: mock.getLeaderboard(req.query),
-  });
+// Displays the leaderboard using the requested filters.
+exports.leaderboard = async (req, res, next) => {
+  try {
+    const lb = await dataService.getLeaderboard(req.query, req.user.id);
+    return res.render('learner/leaderboard', {
+      title: 'Leaderboard',
+      pageStyles: dash.concat(['assessment']),
+      pageScripts: ['leaderboard'],
+      lb,
+    });
+  } catch (error) {
+    return next(error);
+  }
 };
 
-exports.profile = (req, res) => {
-  res.render('learner/profile', { title: 'Account', pageStyles: dash, plans: mock.getPlans() });
+// Shows available plans, payment history, and the current subscription.
+exports.profile = async (req, res, next) => {
+  try {
+    const [plans, paymentHistory, subscription] = await Promise.all([
+      payments.getActivePlans(),
+      payments.getPaymentHistory(req.user.id),
+      payments.getCurrentSubscription(req.user.id),
+    ]);
+    return res.render('learner/profile', {
+      title: 'Account',
+      pageStyles: dash,
+      pageScripts: ['dashboard', 'payments'],
+      plans,
+      paymentHistory,
+      subscription,
+    });
+  } catch (error) {
+    return next(error);
+  }
 };
 
-exports.notifications = (req, res) => {
-  res.render('learner/notifications', { title: 'Notifications', pageStyles: dash, pageScripts: ['dashboard'], notifications: mock.getNotifications() });
+// Renders the learner's notifications.
+exports.notifications = async (req, res, next) => {
+  try {
+    const notifications = await dataService.getNotifications(req.user.id);
+    return res.render('learner/notifications', {
+      title: 'Notifications',
+      pageStyles: dash,
+      pageScripts: ['dashboard'],
+      notifications,
+    });
+  } catch (error) {
+    return next(error);
+  }
 };

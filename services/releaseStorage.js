@@ -3,6 +3,7 @@
 const { randomUUID } = require('crypto');
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 
+// Validates and returns AWS S3 region and bucket configuration
 function getS3Config() {
   const region = process.env.AWS_REGION;
   const bucket = process.env.AWS_S3_BUCKET_NAME;
@@ -11,6 +12,7 @@ function getS3Config() {
   return { region, bucket };
 }
 
+// Uploads a release package archive to S3 bucket and returns the storage key
 async function saveReleaseArchive(buffer, releaseId, version, originalFilename) {
   const { region, bucket } = getS3Config();
   const s3 = new S3Client({ region });
@@ -33,6 +35,7 @@ async function saveReleaseArchive(buffer, releaseId, version, originalFilename) 
   return key;
 }
 
+// Deletes an uploaded release archive from S3 if database import fails
 async function deleteReleaseArchive(key) {
   const { region, bucket } = getS3Config();
   const s3 = new S3Client({ region });

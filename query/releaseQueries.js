@@ -1,5 +1,6 @@
 'use strict';
 
+// Looks up the internal database UUID for an academic year label (e.g. '2024-2025')
 async function getAcademicYearId(prisma, label) {
   const academicYear = await prisma.academic_years.findUnique({
     where: { label },
@@ -9,6 +10,7 @@ async function getAcademicYearId(prisma, label) {
   return academicYear.id;
 }
 
+// Looks up the internal database UUID for a course code (e.g. 'L1')
 async function getCourseId(prisma, code) {
   const course = await prisma.courses.findUnique({
     where: { code },
@@ -18,6 +20,7 @@ async function getCourseId(prisma, code) {
   return course.id;
 }
 
+// Finds the most recent approved blueprint for an assessment type
 async function getLatestApprovedBlueprintId(prisma, type) {
   const blueprint = await prisma.assessment_blueprints.findFirst({
     where: { type, status: 'approved' },
@@ -28,6 +31,7 @@ async function getLatestApprovedBlueprintId(prisma, type) {
   return blueprint.id;
 }
 
+// Inserts a new content release record in 'needs_review' status from imported manifest
 async function insertContentRelease(prisma, manifest, archiveKey) {
   const academicYearId = await getAcademicYearId(prisma, manifest.academic_year_id);
   const release = await prisma.content_releases.create({
@@ -50,6 +54,7 @@ async function insertContentRelease(prisma, manifest, archiveKey) {
   return release.id;
 }
 
+// Stores revision notes markdown for a specific release and course
 async function insertRevisionNote(prisma, releaseId, courseCode, markdown, version, releaseCode) {
   const courseId = await getCourseId(prisma, courseCode);
   await prisma.revision_notes.create({
@@ -63,6 +68,7 @@ async function insertRevisionNote(prisma, releaseId, courseCode, markdown, versi
   });
 }
 
+// Looks up passage UUID by stable identifier and version
 async function getPassageId(prisma, stableId, version) {
   if (!stableId) return null;
 
@@ -78,6 +84,7 @@ async function getPassageId(prisma, stableId, version) {
   return passage.id;
 }
 
+// Creates or updates a reading passage referenced by assessment questions
 async function insertPassage(prisma, courseCode, stableId, text, version, sourceLineage) {
   const courseId = await getCourseId(prisma, courseCode);
   const passage = await prisma.passages.upsert({
@@ -95,6 +102,7 @@ async function insertPassage(prisma, courseCode, stableId, text, version, source
   return passage.id;
 }
 
+// Inserts an exam question along with its options, rubric, and metadata
 async function insertQuestion(prisma, question) {
   const courseId = await getCourseId(prisma, question.course_id);
   const passageId = await getPassageId(
@@ -138,6 +146,7 @@ async function insertQuestion(prisma, question) {
   return inserted.id;
 }
 
+// Creates an assessment shell linked to the release, course, and blueprint
 async function insertAssessment(
   prisma,
   releaseId,
@@ -166,6 +175,7 @@ async function insertAssessment(
   return assessment.id;
 }
 
+// Links a question to an assessment in a specific section and ordering
 async function insertAssessmentItem(
   prisma,
   assessmentId,

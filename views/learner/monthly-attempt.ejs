@@ -5,10 +5,10 @@
     <span class="text-secondary text-small"><%= sim.totalMarks %> marks · all questions compulsory</span>
   </div>
   <div class="assessment-header-actions">
-    <span class="save-indicator" id="autosaveStatus" aria-live="polite">Saved on this device</span>
+    <span class="save-indicator" id="autosaveStatus" aria-live="polite">Loading saved answers</span>
     <div class="timer-display" role="timer" aria-label="Time remaining">
       <%- icon('clock', 18) %>
-      <span id="timerDisplay" data-duration="<%= durationMinutes %>" data-storage-key="mbl_stage1_<%= sim.id %>_expires">--:--</span>
+      <span id="timerDisplay" data-duration="<%= durationMinutes %>" data-expires-at="<%= new Date(sim.attempt.expiresAt).getTime() %>" data-server-now="<%= Date.now() %>" data-attempt-id="<%= sim.attempt.id %>">--:--:--</span>
     </div>
     <button type="button" class="btn btn-primary" id="submitSimBtn" data-modal-open="submitSimModal">Submit exam</button>
   </div>
@@ -34,7 +34,7 @@
         <li><span class="legend-swatch partial"></span> Partly answered</li>
         <li><span class="legend-swatch"></span> Not started</li>
       </ul>
-      <p class="stage-note-small">Stage 1: timer is display only. The server-controlled timer arrives in Stage 2.</p>
+      <p class="stage-note-small">The timer follows the official server-recorded start time. Answers are saved to your account automatically.</p>
     </div>
   </aside>
 </div>
@@ -58,8 +58,8 @@
   <div class="modal-content">
     <div class="modal-header"><h2 id="timeUpTitle" class="modal-title">Time is up</h2></div>
     <div class="modal-body">
-      <p>This preview does not submit your answers automatically when time runs out.</p>
-      <p class="text-secondary text-small mt-2">Your answers remain saved on this device. Nothing is submitted to the server or scored.</p>
+      <p>Your answers will be submitted automatically when the official deadline is reached.</p>
+      <p class="text-secondary text-small mt-2">Only answers saved to your account before the deadline are included.</p>
     </div>
     <div class="modal-footer"><button type="button" class="btn btn-primary" id="timeUpContinue">Continue</button></div>
   </div>
