@@ -101,5 +101,3 @@ module.exports = function errorHandler(error, req, res, next) {
     homeUrl: req.user && req.user.role === 'admin_publisher' ? '/admin' : '/dashboard',
   });
 };
-
-module.exports.resolveError = resolveError;

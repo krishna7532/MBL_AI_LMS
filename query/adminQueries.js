@@ -371,18 +371,6 @@ exports.getUsersByIds = async (userIds) =>
     select: { id: true, name: true },
   });
 
-// Lists all active and inactive courses
-exports.getAllCourse=async ()=>
-      prisma.courses.findMany({
-        orderBy:{created_at:'asc'}
- });
-
-// Lists all content releases chronologically
-exports.getAllContent=async ()=>
-        prisma.content_releases.findMany({
-         orderBy :{created_at: 'asc'}
- });
-
 // Executes approval or rejection of an applicant, creates a 14-day trial if approved, and records audit event
 exports.decidePendingUser = async (prismaTransaction, userId, adminId, decision, reason) => {
   const nextAccountState = decision === 'approved' ? 'trial_active' : 'rejected';

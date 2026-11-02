@@ -2,7 +2,7 @@
   "name": "mbl-ai-lms",
   "version": "0.1.0",
   "private": true,
-  "description": "MBL-AI — Private approval-only revision and assessment LMS for Master of Business Laws learners (Stage 1: EJS frontend with mock data)",
+  "description": "Private approval-only revision and assessment LMS for Master of Business Laws learners",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -30,7 +30,6 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
-    "@aws-sdk/s3-request-presigner": "^3.1152.0",
     "@google/genai": "^2.32.0",
     "@prisma/client": "6.19.0",
     "adm-zip": "^0.6.1",

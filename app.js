@@ -13,7 +13,6 @@ const errorHandler = require('./middleware/errorHandler');
 
 const session=require('express-session');
 const passport = require('./config/passport');
-const authRoutes = require('./routes/auth');
 const paymentController = require('./controllers/paymentController');
 require('dotenv').config();
 
@@ -75,15 +74,6 @@ app.get("/api/test-db", async (req, res) => {
 //for passport autherization
 app.use(passport.initialize());
 app.use(passport.session());
-
-// Makes the current authentication state available to templates.
-app.use((req, res, next) => {
-  res.locals.isAuthenticated = !!(req.user && req.user.email);
-  if (req.user) {
-    res.locals.user = req.user;
-  }
-  next();
-});
 
 // Adds baseline browser security headers to every response.
 app.use((req, res, next) => {

@@ -32,8 +32,6 @@ exports.rupees = (n) => `₹${rupeeFmt.format(n)}`;
 exports.initials = (name) =>
   String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('');
 
-exports.percent = (earned, max) => (max ? Math.round((earned / max) * 100) : 0);
-
 // ── Sprint / attempt state (PRD §8.2) ─────────────────────────────────────────
 const SPRINT_STATES = {
   not_started:        { label: 'Not started',        css: '',            action: 'Start' },
