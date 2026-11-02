@@ -21,18 +21,4 @@ document.addEventListener('DOMContentLoaded', function () {
     else badge.style.display = 'none';
   }
 
-  // ── Notifications page: mark all as read (client-side preview only) ──
-  var markAll = document.getElementById('markAllRead');
-  if (markAll) {
-    markAll.addEventListener('click', function () {
-      document.querySelectorAll('.notification-item.unread').forEach(function (n) {
-        n.classList.remove('unread');
-        var b = n.querySelector('.unread-badge');
-        if (b) b.remove();
-      });
-      var navBadge = document.querySelector('.notification-badge');
-      if (navBadge) navBadge.style.display = 'none';
-      window.showToast('Preview only. Read state is saved in Stage 2.', 'info');
-    });
-  }
 });

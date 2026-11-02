@@ -9,3 +9,5 @@ dist/
 *.swo
 sql file/
 storage/
+# Test folders
+tests/

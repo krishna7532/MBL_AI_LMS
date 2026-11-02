@@ -24,6 +24,7 @@ const PATHS = {
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
   pen: '<path d="M4 20h4L20 8l-4-4L4 16v4z"/>',
+  arrowRight: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
 };
 
 module.exports = function icon(name, size = 20) {

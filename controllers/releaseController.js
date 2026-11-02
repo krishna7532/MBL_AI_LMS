@@ -3,11 +3,12 @@
 const { parseReleasePackage, validateRelease } = require('../services/releaseImporter');
 const { saveReleaseArchive, deleteReleaseArchive } = require('../services/releaseStorage');
 const prisma = require('../config/db');
-const mock = require('../services/mockService');
+const dataService = require('../services/lmsDataService');
 const q = require('../query/releaseQueries');
 
+// Helper to render the release management view with current list of releases
 async function renderReleasesPage(res, { error = null, success = null } = {}) {
-  const releases = await mock.getReleases();
+  const releases = await dataService.getReleases();
   return res.render('admin/releases', {
     title: 'Release management',
     pageStyles: ['admin'],
@@ -18,6 +19,7 @@ async function renderReleasesPage(res, { error = null, success = null } = {}) {
   });
 }
 
+// Renders the releases overview table for administrators
 exports.showReleasesPage = async (req, res, next) => {
   try {
     return await renderReleasesPage(res);
@@ -26,9 +28,10 @@ exports.showReleasesPage = async (req, res, next) => {
   }
 };
 
+// Shows preview of notes, passages, and assessments inside a release package
 exports.previewRelease = async (req, res, next) => {
   try {
-    const release = await mock.getReleasePreview(req.params.releaseId);
+    const release = await dataService.getReleasePreview(req.params.releaseId);
     if (!release) {
       const error = new Error('Release not found.');
       error.status = 404;
@@ -46,6 +49,7 @@ exports.previewRelease = async (req, res, next) => {
   }
 };
 
+// Parses, validates, uploads S3 archive, and saves content release database records
 exports.importRelease = async (req, res, next) => {
   if (!req.file) {
     try {
@@ -167,6 +171,7 @@ exports.importRelease = async (req, res, next) => {
   }
 };
 
+// Publishes an approved release, making its assessments visible to learners
 exports.publishRelease = async (req, res, next) => {
   const releaseId = req.params.releaseId;
   const actorId = req.user ? req.user.id : null;
@@ -236,6 +241,7 @@ exports.publishRelease = async (req, res, next) => {
   }
 };
 
+// Retires a published release, removing it from active assessment schedules
 exports.retireRelease = async (req, res, next) => {
   const releaseId = req.params.releaseId;
   const actorId = req.user ? req.user.id : null;

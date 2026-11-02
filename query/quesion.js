@@ -1,5 +1,6 @@
 const prisma = require('../config/db');
 
+// Fetches assessment items and questions for a specific section (e.g. 'mcq' or 'subjective')
 const getQuestionsBySection = (sprintId, section) =>
     prisma.assessments.findUnique({
         where: { id: sprintId },
@@ -10,6 +11,7 @@ const getQuestionsBySection = (sprintId, section) =>
                 where: { section },
                 orderBy: { item_order: 'asc' },
                 select: {
+                    id: true,
                     section: true,
                     item_order: true,
                     compulsory: true,
@@ -19,6 +21,7 @@ const getQuestionsBySection = (sprintId, section) =>
                             question_number: true,
                             prompt_markdown: true,
                             options: true,
+                            response_format: true,
                             stem_form: true,
                             learner_badge: true,
                             marks: true,
@@ -29,8 +32,10 @@ const getQuestionsBySection = (sprintId, section) =>
         },
     });
 
+// Loads the MCQ questions linked to a weekly sprint.
 exports.getMcqQuestionBySprintId = (sprintId) =>
     getQuestionsBySection(sprintId, 'mcq');
 
+// Loads the subjective questions linked to a weekly sprint.
 exports.getSubQuestionBySprintId = (sprintId) =>
     getQuestionsBySection(sprintId, 'subjective');

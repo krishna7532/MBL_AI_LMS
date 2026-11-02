@@ -1,58 +1,19 @@
 'use strict';
 
-/**
- * STAGE 1 — MOCK DATA BOUNDARY.
- *
- * Controllers only talk to this module. Stage 2 replaces each function with a real
- * service backed by PostgreSQL and server-side entitlement checks, without touching
- * the controllers or views.
- *
- * Learner-safe contract (PRD §15.1): anything returned for a page that a learner can
- * open BEFORE submitting an attempt must never include correct answers, explanations,
- * rubrics or private provenance. `publicMcq()` and `publicSubjective()` enforce that.
- */
-
-const d = require('./mockData');
+/** Database-backed learner and admin view models. */
+const prisma = require('../config/db');
 const renderMarkdown = require('./markdown');
 const adminQueries = require('../query/adminQueries');
 const learnerQueries=require('../query/learnerQuerry');
 const questionQueries = require('../query/quesion');
-const questionQuerry=require('../query/quesion');
-
-const COURSE_IDS = ['C01', 'C02', 'C03', 'C04', 'C05'];
+const leaderboardCalculations = require('./leaderboardCalculations');
+const geminiPrompt = require('./geminiPrompt');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Standard competition ranking: equal scores share a rank (PRD §14.3). */
-function rankRows(rows, scoreKey) {
-  const sorted = [...rows].sort((a, b) => b[scoreKey] - a[scoreKey] || a.alias.localeCompare(b.alias));
-  let lastScore = null;
-  let lastRank = 0;
-  return sorted.map((row, idx) => {
-    if (row[scoreKey] !== lastScore) { lastRank = idx + 1; lastScore = row[scoreKey]; }
-    return { ...row, rank: lastRank };
-  });
-}
-
-function hash(str) {
-  let h = 7;
-  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) % 9973;
-  return h;
-}
-
-function findCourse(id) {
-  return d.courses.find((c) => c._id === id) || null;
-}
-
-// ── Users / session context ──────────────────────────────────────────────────
-
-exports.getLearner = () => d.demoUser;
-exports.getAdminUser = () => d.adminUser;
-exports.getUnreadCount = () => d.notifications.filter((n) => !n.read).length;
-exports.getPlans = () => d.plans;
-
 // ── Courses ──────────────────────────────────────────────────────────────────
 
+// Loads year-group courses and maps weekly completion progress for the dashboard.
 exports.getCourses = async (userId) => {
   const [year1Courses, year2Courses, sprintProgress] = await Promise.all([
     learnerQueries.getFirstYearCourses(),
@@ -88,39 +49,13 @@ exports.getCourses = async (userId) => {
   };
 };
 
+// Loads one course by code with this learner's sprint completion state.
 exports.getCourse = (code, userId) => learnerQueries.getCourseByCode(code, userId);
 
 // ── Weekly sprints & dashboard ───────────────────────────────────────────────
 
-// Week 6 mock sprints (Stage 1 only) — kept consistent with leaderboard overrides below.
-const WEEK6 = {
-  C01: { title: 'Consideration and Capacity to Contract', score: 30 },
-  C02: { title: 'Banking Regulation Act — Licensing and Control', score: 28 },
-  C03: { title: 'Share Capital and Membership', score: 33 },
-  C04: { title: 'Trade Unions — Registration and Immunities', score: 26 },
-  C05: { title: 'Air and Water Pollution Control', score: 31 },
-};
-const WEEKDAYS = { C01: 'Monday', C02: 'Tuesday', C03: 'Wednesday', C04: 'Thursday', C05: 'Friday' };
-
-function week6Sprints() {
-  return COURSE_IDS.map((cid) => ({
-    _id: `sprint_w06_${cid}`,
-    courseId: cid,
-    courseName: findCourse(cid).name,
-    weekNumber: 6,
-    weekday: WEEKDAYS[cid],
-    title: WEEK6[cid].title,
-    status: 'completed',
-    bestScore: WEEK6[cid].score,
-    maxScore: 40,
-    mcqCount: 15,
-    subjectiveCount: 1,
-    publishedAt: '2026-09-01T00:00:00+05:30',
-  }));
-}
-
-//get all weekly in a content release
- async function allWeeks() {
+// Loads weekly releases and their published assessment summaries.
+async function allWeeks(userId) {
   const allWeekly = await learnerQueries.getAllWeekly();
 
   return Promise.all(
@@ -128,16 +63,22 @@ function week6Sprints() {
       number: weekly.week_number,
       state: weekly.status === 'published' ? 'published' : 'upcoming',
       publishedAt: weekly.publish_at,
-      sprints: await learnerQueries.getWeeklySprint(weekly.id),
+      sprints: await learnerQueries.getWeeklySprint(weekly.id, userId),
     }))
   );
 }
 
-exports.getDashboard = async () => {
-  const weeks = await allWeeks();
-  const current = weeks[0];
+// Combines weekly progress, monthly availability, and leaderboard data for dashboard.
+exports.getDashboard = async (userId) => {
+  const weeks = await allWeeks(userId);
+  const current = weeks[0] || { number: null, sprints: [] };
   const completed = current.sprints.filter((s) => s.status === 'completed').length;
-  const monthly = exports.getMonthly();
+  const [monthly, leaderboard] = await Promise.all([
+    learnerQueries.getMonthlyAssessments(),
+    exports.getLeaderboard({}, userId),
+  ]);
+  const availableMonthly = monthly.filter((m) => m.status === 'available');
+
   return {
     weeks,
     week: {
@@ -146,39 +87,43 @@ exports.getDashboard = async () => {
       goal: 4,
       total: current.sprints.length,
       bestTotal: current.sprints.reduce((sum, s) => sum + (s.bestScore || 0), 0),
-      maxTotal: current.sprints.length * 40,
+      maxTotal: current.sprints.reduce((sum, sprint) => sum + sprint.maxScore, 0),
     },
-    monthlyFeatured: monthly.find((m) => m.status === 'available') || monthly[0],
-    monthlyOpen: monthly.filter((m) => m.status === 'available').length,
-    recentResults: exports.getResults().slice(0, 3),
-    leaderboardTop: exports.getLeaderboard({}).weekly.top,
+    monthlyFeatured: availableMonthly[0] || monthly[0] || null,
+    monthlyOpen: availableMonthly.length,
+    leaderboardTop: leaderboard.weekly.top,
   };
 };
 
 /** Where the primary action on a sprint card should point. */
 exports.sprintHref = (sprint) => {
   if (sprint.id) return `/weekly/${encodeURIComponent(sprint.id)}`;
-  if (sprint.status === 'completed' && sprint._id === 'sprint_w07_C02') return '/results/attempt_001';
   return `/weekly/${sprint._id}`;
 };
 
+// Returns only weekly releases that contain sprint assessments.
 exports.getWeeklyOverview = async () => (await allWeeks()).filter((w) => w.sprints.length);
 
-function publicMcq(q) {
+// Removes answer keys and private fields from an MCQ before rendering for learners.
+function publicMcq(q, assessmentItemId) {
   return {
     id: q.id,
+    assessmentItemId,
     number: q.question_number,
     prompt: q.prompt_markdown,
     options: Array.isArray(q.options) ? q.options.map((o) => ({ id: o.id, text: o.text })) : [],
     badge: q.learner_badge,
     stemForm: q.stem_form,
+    responseFormat: q.response_format,
   };
 }
 
-function publicSubjective(q) {
+// Removes evaluator-only fields from a subjective question before learner display.
+function publicSubjective(q, assessmentItemId) {
   const subParts = [...q.prompt_markdown.matchAll(/\(([a-z])\)/gi)].map((match) => match[1].toLowerCase());
   return {
     id: q.id,
+    assessmentItemId,
     prompt: q.prompt_markdown,
     marks: Number(q.marks),
     subParts,
@@ -188,6 +133,7 @@ function publicSubjective(q) {
 
 
 //weekly sprint
+// Loads a weekly sprint's notes and learner-safe questions.
 exports.getSprint = async (sprintId) => {
   const weeks = await allWeeks();
   const sprint = weeks
@@ -199,21 +145,18 @@ exports.getSprint = async (sprintId) => {
       : null;
     const headings = note?.markdown.match(/^#{1,6}\s+.+$/gm) || [];
     const hasContent = Boolean(sprint.id);
-    const base = {
-      sprint,
-      hasContent,
-      resultHref: sprint.status === 'completed' && sprintId === 'sprint_w07_C02'
-        ? '/results/attempt_001'
-        : null,
-    };
+    const base = { sprint, hasContent };
     if (!hasContent) return base;
 
     const [mcqAssessment, subjectiveAssessment] = await Promise.all([
       questionQueries.getMcqQuestionBySprintId(sprint.id),
       questionQueries.getSubQuestionBySprintId(sprint.id),
     ]);
-    const mcqs = (mcqAssessment?.assessment_items || []).map((item) => publicMcq(item.questions));
-    const subjectiveQuestion = subjectiveAssessment?.assessment_items[0]?.questions;
+    const mcqs = (mcqAssessment?.assessment_items || []).map((item) =>
+      publicMcq(item.questions, item.id)
+    );
+    const subjectiveItem = subjectiveAssessment?.assessment_items[0];
+    const subjectiveQuestion = subjectiveItem?.questions;
 
     return {
       ...base,
@@ -223,7 +166,7 @@ exports.getSprint = async (sprintId) => {
         html: renderMarkdown(note?.markdown || ''),
       },
       mcqs,
-      subjective: subjectiveQuestion ? publicSubjective(subjectiveQuestion) : {
+      subjective: subjectiveQuestion ? publicSubjective(subjectiveQuestion, subjectiveItem.id) : {
         id: '',
         prompt: '',
         marks: 0,
@@ -236,134 +179,22 @@ exports.getSprint = async (sprintId) => {
 
   const databaseSprint = await learnerQueries.getWeeklySprintByAssessmentId(sprintId);
   if (!databaseSprint) return null;
-  return { sprint: databaseSprint, hasContent: false, resultHref: null };
-};
-
-// ── Results ──────────────────────────────────────────────────────────────────
-
-const PREVIEW_SELECTIONS = {
-  // questionNumber → selected option id (deterministic mock answers; #4 left unanswered)
-  1: 'A', 2: 'C', 3: 'A', 5: 'C', 6: 'B', 7: 'B', 8: 'B', 9: 'A', 10: 'B',
-  11: 'C', 12: 'A', 13: 'B', 14: 'C', 15: 'B',
-};
-
-function buildPreviewAttempt() {
-  const review = d.weeklyMCQs.map((q) => {
-    const selectedId = PREVIEW_SELECTIONS[q.questionNumber] || null;
-    const correctId = q.correctOptionIds[0];
-    return {
-      number: q.questionNumber,
-      prompt: q.prompt,
-      options: q.options,
-      badge: q.originBadge,
-      selectedId,
-      correctId,
-      state: selectedId === null ? 'unanswered' : selectedId === correctId ? 'correct' : 'incorrect',
-      explanation: q.explanation,
-    };
-  });
-  const correct = review.filter((r) => r.state === 'correct').length;
-  const incorrect = review.filter((r) => r.state === 'incorrect').length;
-  const unanswered = review.filter((r) => r.state === 'unanswered').length;
-  // +2 / 0 / 0 — no negative marking (PRD §5.1)
-  return {
-    _id: 'attempt_preview',
-    kind: 'weekly',
-    isSample: true,
-    courseName: 'Contract Law',
-    weekNumber: 7,
-    attemptNumber: 1,
-    submittedAt: null,
-    mcq: { earned: correct * 2, max: 30, correct, incorrect, unanswered },
-    subjective: { status: 'evaluation_pending', max: 10 },
-    total: null, // no combined score until evaluation succeeds (PRD §10.4)
-    feedback: null,
-    review,
-  };
-}
-
-function buildEvaluatedAttempt() {
-  const r = d.sampleResult;
-  return {
-    _id: r._id,
-    kind: 'weekly',
-    courseName: r.courseName,
-    weekNumber: r.weekNumber,
-    attemptNumber: r.attemptNumber,
-    submittedAt: r.submittedAt,
-    mcq: r.scores.mcq,
-    subjective: { status: r.scores.subjective.status, earned: r.scores.subjective.earned, max: r.scores.subjective.max },
-    total: r.scores.total,
-    feedback: r.feedback,
-    review: null, // MCQ review data for this mock attempt is not part of the mock set
-  };
-}
-
-function buildMonthlyAttempt() {
-  return {
-    _id: 'attempt_m02_c02',
-    kind: 'monthly',
-    courseName: 'Banking Law',
-    monthNumber: 2,
-    attemptNumber: 1,
-    submittedAt: '2026-09-05T18:40:00+05:30',
-    sections: [
-      { label: 'Part A — Passage-linked MCQs', earned: 34, max: 50 },
-      { label: 'Part B — Scenario / application', earned: 20, max: 30 },
-      { label: 'Part C — Doctrinal / critical', earned: 18, max: 20 },
-    ],
-    total: { earned: 72, max: 100, percentage: 72 },
-  };
-}
-
-exports.getResults = () => [
-  { _id: 'attempt_001', kind: 'weekly', title: 'Banking Law — Week 7 sprint', submittedAt: d.sampleResult.submittedAt, earned: 32, max: 40, status: 'completed' },
-  { _id: 'attempt_m02_c02', kind: 'monthly', title: 'Banking Law — Monthly simulation (Weeks 5–8)', submittedAt: '2026-09-05T18:40:00+05:30', earned: 72, max: 100, status: 'completed' },
-];
-
-exports.getResult = (id) => {
-  if (id === 'attempt_001') return buildEvaluatedAttempt();
-  if (id === 'attempt_m02_c02') return buildMonthlyAttempt();
-  if (id === 'attempt_preview') return buildPreviewAttempt();
-  return null;
+  return { sprint: databaseSprint, hasContent: false };
 };
 
 // ── Monthly simulation ───────────────────────────────────────────────────────
 
-const SIM_COURSES = ['C01', 'C02', 'C03', 'C04', 'C05'];
-
-exports.getMonthly = () => {
-  const real = d.monthlySimulations;
-  return SIM_COURSES.map((cid) => {
-    const found = real.find((s) => s.courseId === cid);
-    if (found) return found;
-    return {
-      id: `sim_m02_${cid}`,
-      courseId: cid,
-      courseName: findCourse(cid).name,
-      month: 2,
-      title: `${findCourse(cid).name} — Monthly Simulation (Weeks 5–8)`,
-      duration: 180,
-      totalMarks: 100,
-      status: 'not_released',
-      sections: real[0].sections,
-      bestScore: null,
-      attempts: 0,
-      publishedAt: null,
-    };
-  });
-};
-
+// Loads monthly assessment summaries from the database.
 exports.getMonthlyAssessments = (userId) => learnerQueries.getMonthlyAssessments(userId);
 
+// Finds one monthly assessment summary by its assessment ID.
 exports.getMonthlyAssessmentSummary = async (id) => {
   const assessments = await learnerQueries.getMonthlyAssessments();
   return assessments.find((assessment) => assessment.id === id) || null;
 };
 
+// Loads an exam-pattern instruction rule from the database.
 exports.getExamPatternRule = (ruleKey) => learnerQueries.getExamPatternRule(ruleKey);
-
-exports.getSimulationSummary = (id) => exports.getMonthly().find((s) => s.id === id) || null;
 
 /** Learner-safe simulation payload. No answers, explanations or rubrics. */
 exports.getSimulationPlayer = (assessmentId) =>
@@ -371,87 +202,165 @@ exports.getSimulationPlayer = (assessmentId) =>
 
 // ── Leaderboards ─────────────────────────────────────────────────────────────
 
-const PEOPLE = ['CorporateCounsel', 'LawNavigator', 'LegalEagle42', 'BriefWriter99', 'PrecedentHunter', 'ConstitutionFan', 'EquityScholar', 'TortReformer'];
-const ME = d.demoUser.leaderboardAlias;
-
-// The demo learner's real (mock) sprint scores, consistent with the dashboard. null = not attempted.
-const ME_SCORES = {
-  7: { C01: null, C02: 34, C03: null, C04: null, C05: null },
-  6: Object.fromEntries(COURSE_IDS.map((c) => [c, WEEK6[c].score])),
-};
-
-function courseScore(alias, courseId, week) {
-  if (alias === ME) return (ME_SCORES[week] || {})[courseId] ?? null;
-  if (week === 7 && courseId === 'C02') {
-    const row = d.weeklyLeaderboard.find((r) => r.alias === alias);
-    return row ? row.score : null; // TortReformer has not attempted this sprint
-  }
-  return 22 + (hash(`${alias}|${courseId}|${week}`) % 17); // 22–38, deterministic mock
-}
-
-const FIRST_ATTEMPT_DROP = { CorporateCounsel: [6, 4], LawNavigator: [8, 2], LegalEagle42: [5, 6], BriefWriter99: [12, 3], PrecedentHunter: [4, 9], ConstitutionFan: [7, 5], EquityScholar: [10, 4], TortReformer: [3, 2] };
-
-exports.getLeaderboard = (query = {}) => {
-  const scope = query.scope === 'all' ? 'all' : 'course';
-  const courseId = COURSE_IDS.includes(query.course) ? query.course : 'C02';
-  const week = [6, 7].includes(parseInt(query.week, 10)) ? parseInt(query.week, 10) : 7;
+// Builds weekly and monthly rankings from opt-in learners' evaluated attempts.
+exports.getLeaderboard = async (query = {}, userId) => {
+  const [year, profiles, ownProfile] = await Promise.all([
+    prisma.academic_years.findFirst({
+      where: { active: true },
+      select: { id: true, label: true },
+    }),
+    prisma.leaderboard_profiles.findMany({
+      where: { status: 'opted_in' },
+      select: { user_id: true, handle: true },
+    }),
+    userId ? prisma.leaderboard_profiles.findUnique({
+      where: { user_id: userId },
+      select: { handle: true, status: true },
+    }) : null,
+  ]);
   const attempt = query.attempt === 'first' ? 'first' : 'best';
   const tab = query.tab === 'cumulative' ? 'cumulative' : 'weekly';
-  const optIn = query.optout === '1' ? false : d.demoUser.leaderboardOptIn;
-  // Opted-out learners must not appear in any public ranking (PRD §14.1, LEAD-01).
-  const visible = (alias) => optIn || alias !== ME;
-
-  // Weekly
-  const weeklyRows = PEOPLE.filter(visible).map((alias) => {
-    let score;
-    if (scope === 'course') score = courseScore(alias, courseId, week);
-    else score = COURSE_IDS.reduce((sum, c) => sum + (courseScore(alias, c, week) || 0), 0); // unattempted = 0
-    return { alias, score };
-  }).filter((r) => r.score !== null && (scope === 'course' || r.score > 0));
-  const weeklyRanked = rankRows(weeklyRows, 'score').map((r) => ({ ...r, isMe: r.alias === ME }));
-  const weeklyMe = weeklyRanked.find((r) => r.isMe) || null;
-
-  // Cumulative (alias-only; PRD §14.3)
-  const cumulativeRows = d.aggregateLeaderboard.filter((r) => visible(r.alias)).map((r) => {
-    const drop = FIRST_ATTEMPT_DROP[r.alias] || [0, 0];
-    const weeklyTotal = attempt === 'first' ? r.weeklyTotal - drop[0] : r.weeklyTotal;
-    const monthlyTotal = attempt === 'first' ? r.monthlyTotal - drop[1] : r.monthlyTotal;
-    return { alias: r.alias, weeklyTotal, monthlyTotal, total: weeklyTotal + monthlyTotal };
-  });
-  const cumulativeRanked = rankRows(cumulativeRows, 'total').map((r) => ({ ...r, isMe: r.alias === ME }));
+  const optIn = ownProfile?.status === 'opted_in';
+  const ownHandle = optIn ? ownProfile.handle : null;
+  const optedInIds = profiles.map((profile) => profile.user_id);
+  const now = new Date();
+  const attempts = year && optedInIds.length
+    ? await prisma.attempts.findMany({
+      where: {
+        user_id: { in: optedInIds },
+        state: 'evaluated',
+        submitted_at: { not: null },
+        submitted_via: 'manual',
+        assessments: {
+          is: {
+            academic_year_id: year.id,
+            status: 'approved',
+            OR: [
+              {
+                type: 'weekly',
+                content_releases: {
+                  is: {
+                    release_type: 'weekly',
+                    status: 'published',
+                    publish_at: { lte: now },
+                  },
+                },
+              },
+              {
+                type: 'monthly',
+                content_releases: {
+                  is: {
+                    release_type: 'monthly',
+                    status: 'published',
+                    publish_at: { lte: now },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      orderBy: [
+        { user_id: 'asc' },
+        { assessment_id: 'asc' },
+        { attempt_number: 'asc' },
+      ],
+      select: {
+        user_id: true,
+        assessment_id: true,
+        attempt_number: true,
+        state: true,
+        submitted_at: true,
+        submitted_via: true,
+        objective_score: true,
+        objective_max_score: true,
+        assessments: {
+          select: {
+            type: true,
+            assessment_items: {
+              select: {
+                id: true,
+                questions: {
+                  select: { response_format: true, marks: true },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          where: { submitted_at: { not: null } },
+          select: {
+            assessment_item_id: true,
+            subjective_answer: true,
+            assessment_items: {
+              select: {
+                questions: { select: { response_format: true } },
+              },
+            },
+            evaluations: {
+              select: { state: true, score: true },
+            },
+          },
+        },
+      },
+    })
+    : [];
+  const weeklyRanked = leaderboardCalculations.buildRows(
+    attempts, profiles, 'weekly', attempt, userId
+  );
+  const monthlyRanked = leaderboardCalculations.buildRows(
+    attempts, profiles, 'monthly', attempt, userId
+  );
+  const weeklyMe = weeklyRanked.find((row) => row.isMe) || null;
 
   return {
     tab,
-    courses: d.courses.map((c) => ({ id: c._id, name: c.name })),
-    // `?optout=1` previews the opted-out state (PRD §14.1). Stage 2 reads this from leaderboard_profiles.
-    participation: { optIn, alias: d.demoUser.leaderboardAlias },
+    participation: { optIn, alias: ownHandle },
     weekly: {
-      scope, courseId, week,
-      courseName: findCourse(courseId).name,
-      max: scope === 'all' ? 200 : 40,
-      weeks: [7, 6],
-      top: weeklyRanked.slice(0, 3), // PRD §14.2: top three plus the learner's own rank
+      top: weeklyRanked.slice(0, 3),
       me: weeklyMe,
       meOutsideTop: !!weeklyMe && weeklyMe.rank > 3,
     },
-    cumulative: { attempt, rows: cumulativeRanked, me: cumulativeRanked.find((r) => r.isMe) || null },
+    cumulative: {
+      attempt,
+      rows: monthlyRanked,
+      me: monthlyRanked.find((row) => row.isMe) || null,
+    },
+    academicYear: year?.label || 'current academic year',
   };
 };
 
 // ── Notifications ────────────────────────────────────────────────────────────
 
-exports.getNotifications = () => d.notifications;
+// Lists notifications persisted for the requested learner.
+exports.getNotifications = async (userId) => {
+  const rows = await prisma.notifications.findMany({
+    where: { user_id: userId },
+    orderBy: { created_at: 'desc' },
+    take: 100,
+    select: { id: true, template: true, event: true, delivery_state: true, created_at: true },
+  });
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.template,
+    message: row.event,
+    type: row.template,
+    createdAt: row.created_at,
+  }));
+};
 
 // ── Admin ────────────────────────────────────────────────────────────────────
 
+// Combines pending approvals, persisted counts, audit activity, and releases.
 exports.getAdminOverview = async () => {
-  const [users, releases, auditLogs] = await Promise.all([
+  const [users, releases, auditLogs, stats] = await Promise.all([
     adminQueries.getPendingApprovals(),
     exports.getReleases(),
     exports.getAuditLogs(),
+    adminQueries.getDashboardStats(),
   ]);
   return {
-    stats: d.adminStats,
+    stats,
     pending: users.map((user) => ({
       _id: user.id,
       name: user.name,
@@ -470,6 +379,7 @@ exports.getAdminOverview = async () => {
   };
 };
 
+// Maps pending and existing database users for the admin user list.
 exports.getAdminUsers = async() => {
   const [pendingUsers, allUsers] = await Promise.all([
     adminQueries.getPendingApprovals(),
@@ -509,6 +419,7 @@ exports.getAdminUsers = async() => {
   };
 };
 
+// Maps database revision notes into the admin content list.
 exports.getContentItems = async () => {
   const notes = await adminQueries.getAllRevisionNotes();
 
@@ -531,6 +442,7 @@ exports.getContentItems = async () => {
     };
   });
 };
+// Maps database questions into the admin assessment list.
 exports.getAssessmentItems = async () => {
   const assessmentItems = await adminQueries.getAllAssessment();
 
@@ -556,6 +468,7 @@ exports.getAssessmentItems = async () => {
 
 };
 
+// Loads a question with its answer key and evaluator details for admin preview.
 exports.getAssessmentPreview = async (id) => {
   const question = await adminQueries.getAssessmentQuestionById(id);
   if (!question) return null;
@@ -602,6 +515,7 @@ exports.getAssessmentPreview = async (id) => {
   };
 };
 
+// Maps audit events and related user names into display-ready log entries.
 exports.getAuditLogs = async () => {
   const auditEvents = await adminQueries.getAllAuditEvent();
   const targetUserIds = [...new Set(
@@ -646,6 +560,7 @@ exports.getAuditLogs = async () => {
 };
 
 const RELEASE_STEPS = ['draft', 'validating', 'needs_review', 'approved', 'scheduled', 'published'];
+// Maps database releases into a display model with progress and approval counts.
 exports.getReleases = async () => {
   const releases = await adminQueries.getAllReleases();
 
@@ -683,6 +598,7 @@ exports.getReleases = async () => {
   });
 };
 
+// Loads a release and maps its notes and question content for admin preview.
 exports.getReleasePreview = async (id) => {
   const release = await adminQueries.getReleaseById(id);
   if (!release) return null;
@@ -750,25 +666,88 @@ exports.getReleasePreview = async (id) => {
   };
 };
 
-// Pattern-rule records follow PRD §6.3. Values here are display-only mock records.
-exports.getAdminSettings = () => ({
-  patternRules: [
-    { key: 'annual_assessment_composition', value: '50 MCQ marks + 50 subjective marks (June 2027 annual assessment)', sourceType: 'screenshot', sourceLabel: 'PACE assessment screenshot supplied to product', cohort: 'June 2027', confidence: 'confirmed', verifiedAt: '2026-09-08', subjectToChange: true, isCurrent: true },
-    { key: 'june_2026_paper_format', value: '100 marks, three hours, annual summative examination', sourceType: 'papers', sourceLabel: 'Three June 2026 papers supplied to product', cohort: 'June 2026', confidence: 'confirmed', verifiedAt: '2026-09-08', subjectToChange: true, isCurrent: false },
-    { key: 'june_2026_subjective_choice', value: 'Part B: attempt any 3 of 4. Part C: attempt any 2 of 3. Each question 10 marks.', sourceType: 'papers', sourceLabel: 'Three June 2026 papers supplied to product', cohort: 'June 2026', confidence: 'confirmed', verifiedAt: '2026-09-08', subjectToChange: true, isCurrent: false },
-    { key: 'sim_part_a_structure', value: '5 shared passages × 5 linked MCQs × 2 marks = 50', sourceType: 'product', sourceLabel: 'Product default (no verified official Part A structure)', cohort: 'Simulation', confidence: 'product_default', verifiedAt: null, subjectToChange: true, isCurrent: true },
-    { key: 'sim_subjective_choice', value: 'All 5 subjective questions compulsory (no choice)', sourceType: 'product', sourceLabel: 'Deliberate product configuration; differs from June 2026 papers', cohort: 'Simulation', confidence: 'product_default', verifiedAt: null, subjectToChange: true, isCurrent: true },
-    { key: 'negative_marking', value: 'None (+2 / 0 / 0)', sourceType: 'product', sourceLabel: 'Product default (no verified official rule)', cohort: 'Simulation', confidence: 'product_default', verifiedAt: null, subjectToChange: true, isCurrent: true },
-    { key: 'formative_assessments', value: 'Unresolved — do not claim', sourceType: 'none', sourceLabel: 'Awaiting verified source', cohort: '—', confidence: 'unverified', verifiedAt: null, subjectToChange: true, isCurrent: true },
-  ],
-  blueprint: {
-    weekly: { mcqs: 15, mcqMarks: 2, subjective: 1, subjectiveMarks: 10, max: 40, negativeMarking: false },
-    monthly: { durationMinutes: 180, passages: 5, mcqsPerPassage: 5, mcqMarks: 2, partB: 3, partC: 2, subjectiveMarks: 10, max: 100, pause: false, negativeMarking: false, allCompulsory: true },
-  },
-  ai: { provider: 'Not configured (Stage 2)', model: 'Configured server-side', promptVersion: '—', maxAnswerChars: 3000, note: 'Answer and token caps are an open decision (PRD §26).' },
-});
+// Loads persisted exam rules and approved assessment blueprints for admin display.
+exports.getAdminSettings = async () => {
+  const [rules, blueprints] = await Promise.all([
+    prisma.exam_pattern_rules.findMany({
+      orderBy: [{ rule_key: 'asc' }, { version: 'desc' }],
+      select: {
+        rule_key: true,
+        rule_value: true,
+        source: true,
+        confidence: true,
+        effective_cohort: true,
+        version: true,
+      },
+    }),
+    prisma.assessment_blueprints.findMany({
+      where: { status: 'approved' },
+      orderBy: [{ type: 'asc' }, { version: 'desc' }],
+      select: {
+        type: true,
+        duration_minutes: true,
+        scoring_policy: true,
+        section_configuration: true,
+      },
+    }),
+  ]);
+  const latestRules = new Map();
+  for (const rule of rules) {
+    if (!latestRules.has(rule.rule_key)) latestRules.set(rule.rule_key, rule);
+  }
+  const latestBlueprints = new Map();
+  for (const blueprint of blueprints) {
+    if (!latestBlueprints.has(blueprint.type)) latestBlueprints.set(blueprint.type, blueprint);
+  }
+  const mapBlueprint = (blueprint) => {
+    const config = blueprint?.section_configuration || {};
+    const scoring = blueprint?.scoring_policy || {};
+    return {
+      mcqs: Number(config.mcq_count || 0),
+      mcqMarks: Number(scoring.mcq_correct || 0),
+      subjective: Number(config.subjective_count || 0),
+      subjectiveMarks: Number(config.subjective_marks || 0),
+      max: Number(config.max_score || 0),
+      durationMinutes: blueprint?.duration_minutes || 0,
+      passages: Number(config.passage_count || config.passages || 0),
+      mcqsPerPassage: Number(config.mcqs_per_passage || 0),
+      partB: Number(config.part_b_count || 0),
+      partC: Number(config.part_c_count || 0),
+      negativeMarking: Number(scoring.mcq_incorrect || 0) < 0,
+      pause: Boolean(scoring.pause_allowed),
+      allCompulsory: config.all_compulsory === undefined
+        ? null
+        : config.all_compulsory !== false,
+    };
+  };
+  return {
+    patternRules: [...latestRules.values()].map((rule) => ({
+      key: rule.rule_key,
+      value: typeof rule.rule_value === 'string' ? rule.rule_value : JSON.stringify(rule.rule_value),
+      sourceLabel: rule.source || 'Not specified',
+      cohort: rule.effective_cohort || 'Not specified',
+      confidence: rule.confidence || 'unverified',
+      verifiedAt: null,
+      isCurrent: true,
+    })),
+    blueprint: {
+      weekly: mapBlueprint(latestBlueprints.get('weekly')),
+      monthly: mapBlueprint(latestBlueprints.get('monthly')),
+    },
+    ai: {
+      provider: 'Gemini',
+      configured: Boolean(process.env.GEMINI_API_KEY),
+      model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
+      promptVersion: geminiPrompt.PROMPT_VERSION,
+      prompt: geminiPrompt.getPromptTemplate(),
+      maxAnswerChars: 4000,
+      note: 'Maximum answer length: 4,000 characters.',
+    },
+  };
+};
 
 //For preview action
+// Loads one revision note and maps its content for admin preview.
 exports.getRevisionNotePreview = async (id) => {
   const note = await adminQueries.getRevisionNoteById(id);
   if (!note) return null;

@@ -10,27 +10,28 @@
     </a>
   </div>
   <div class="navbar-actions">
-    <% if (!isAdminArea) { %>
+    <% if (user && !isAdminArea) { %>
     <a class="nav-icon-wrap navbar-icon-link" href="/notifications" aria-label="Notifications<%= unreadCount ? ', ' + unreadCount + ' unread' : '' %>">
       <%- icon('bell', 22) %>
       <% if (unreadCount) { %><span class="notification-badge" data-count="<%= unreadCount %>"><%= unreadCount %></span><% } %>
     </a>
     <% } %>
+    <% if (user) { %>
     <div class="user-dropdown">
       <button type="button" class="user-dropdown-toggle" aria-haspopup="true" aria-expanded="false" aria-label="Account menu for <%= user.name %>">
         <span class="navbar-avatar" aria-hidden="true"><%= fmt.initials(user.name) %></span>
         <span class="user-dropdown-name hide-mobile"><%= user.name %></span>
       </button>
       <div class="user-dropdown-menu" role="menu">
-        <% if (isAdminArea) { %>
-          <a role="menuitem" href="/dashboard">Learner screens</a>
-        <% } else { %>
+        <% if (!isAdminArea) { %>
           <a role="menuitem" href="/profile">Account</a>
           <a role="menuitem" href="/notifications">Notifications</a>
-          <a role="menuitem" href="/admin">Admin screens</a>
         <% } %>
-        <a role="menuitem" href="/login">Sign-in page</a>
+        <a role="menuitem" href="/logout">Logout</a>
       </div>
     </div>
+    <% } else { %>
+    <a class="user-dropdown-name" href="/login">Sign in</a>
+    <% } %>
   </div>
 </header>

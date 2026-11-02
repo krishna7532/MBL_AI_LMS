@@ -231,8 +231,6 @@ button, a, .btn, .sidebar-link, .nav-link {
   .player-grid { grid-template-columns: 1fr; }
   .passage-split { grid-template-columns: 1fr; }
   .admin-two-col { grid-template-columns: 1fr; }
-  .stage-banner { font-size: 0.75rem; }
-  .stage-banner-links a { margin-left: 0.5rem; }
 }
 
 @media (max-width: 480px) {

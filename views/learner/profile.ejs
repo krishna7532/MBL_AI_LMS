@@ -2,6 +2,7 @@
 <%
   const trial = user.trial;
   const state = fmt.accountState(user.accountState);
+  const planNames = { annual: 'Annual Plan', completion: 'Completion Plan' };
 %>
 <div class="page-header">
   <div>
@@ -38,6 +39,15 @@
 
 <section id="plans" class="mt-4" aria-labelledby="plansHeading">
   <h2 id="plansHeading" class="section-title">Plans</h2>
+  <% if (subscription) { %>
+  <div class="card mb-3">
+    <div class="card-body">
+      <h3 class="section-title">Active subscription: <%= planNames[subscription.plans.code] || subscription.plans.code %></h3>
+      <p class="text-secondary">Access is active through <%= fmt.date(subscription.ends_at) %>.</p>
+    </div>
+  </div>
+  <% } %>
+  <p class="text-danger" data-payment-status role="status" hidden></p>
   <div class="plans-grid">
     <% plans.forEach(function (plan) { %>
     <article class="card plan-card">
@@ -51,14 +61,22 @@
       </div>
       <div class="card-footer">
         <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" id="refund-<%= plan.code %>" disabled>
-          <label class="form-check-label" for="refund-<%= plan.code %>">I understand there is no voluntary refund after purchase.</label>
+          <input class="form-check-input" type="checkbox" id="refund-<%= plan.code %>" data-refund-ack>
+          <label class="form-check-label" for="refund-<%= plan.code %>"><%= constants.REFUND_DISCLOSURE %></label>
         </div>
-        <button type="button" class="btn btn-primary btn-block" disabled>Pay <%= fmt.rupees(plan.price) %> with Razorpay (Stage 2)</button>
+        <button
+          type="button"
+          class="btn btn-primary btn-block"
+          data-payment-plan="<%= plan.code %>"
+          data-plan-name="<%= plan.name %>"
+        >Buy <%= fmt.rupees(plan.price) %></button>
       </div>
     </article>
     <% }) %>
   </div>
+  <% if (!plans.length) { %>
+  <p class="text-secondary">No plans are available for purchase right now.</p>
+  <% } %>
   <p class="text-secondary text-small mt-3"><%= constants.REFUND_DISCLOSURE %></p>
   <p class="text-secondary text-small">Paid access starts only after the server confirms your payment. Tax treatment and the contracting entity are still to be confirmed before paid launch.</p>
 </section>
@@ -66,7 +84,23 @@
 <div class="account-grid mt-4">
   <section class="card" aria-labelledby="paymentsHeading">
     <div class="card-header"><h2 id="paymentsHeading" class="section-title mb-0">Payment history</h2></div>
-    <div class="card-body"><p class="text-secondary">No payments yet.</p></div>
+    <div class="card-body">
+      <% if (paymentHistory.length) { %>
+      <ul class="result-list">
+        <% paymentHistory.forEach(function (payment) { %>
+        <li>
+          <span>
+            <span class="result-list-title"><%= planNames[payment.plans && payment.plans.code] || 'Plan payment' %></span>
+            <span class="result-list-meta"><%= fmt.dateTime(payment.paid_at || payment.created_at) %> · <%= fmt.label(payment.state) %></span>
+          </span>
+          <span class="sprint-score"><%= fmt.rupees(Number(payment.amount)) %></span>
+        </li>
+        <% }) %>
+      </ul>
+      <% } else { %>
+      <p class="text-secondary">No payments yet.</p>
+      <% } %>
+    </div>
   </section>
 
   <section class="card" aria-labelledby="policiesHeading">
@@ -80,25 +114,5 @@
   </section>
 </div>
 
-<section class="card mt-4" aria-labelledby="deleteHeading">
-  <div class="card-body participation">
-    <div>
-      <h2 id="deleteHeading" class="section-title">Delete your account</h2>
-      <p class="text-secondary text-small">Ask us to delete your account and personal data. The deletion timeline will be set before paid launch.</p>
-    </div>
-    <button type="button" class="btn btn-danger" data-modal-open="deleteModal">Request deletion</button>
-  </div>
-</section>
-
-<div class="modal" id="deleteModal" role="dialog" aria-modal="true" aria-labelledby="deleteTitle">
-  <div class="modal-overlay"></div>
-  <div class="modal-content">
-    <div class="modal-header"><h2 id="deleteTitle" class="modal-title">Request account deletion?</h2></div>
-    <div class="modal-body"><p>We'll review your request and delete your account and personal data. You'll lose access to all content.</p></div>
-    <div class="modal-footer">
-      <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
-      <button type="button" class="btn btn-danger" data-preview-action="Deletion requests are recorded in Stage 2.">Request deletion</button>
-    </div>
-  </div>
-</div>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <%- include('../layouts/footer') %>

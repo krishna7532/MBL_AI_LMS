@@ -2,9 +2,8 @@
 <div class="admin-header page-header">
   <div>
     <h1 class="page-title">Users & approvals</h1>
-    <p class="page-subtitle">Approve, reject or suspend learners and check their access.</p>
+    <p class="page-subtitle">Approve or reject applications and review learner access.</p>
   </div>
-  <!-- <div class="page-actions"><button type="button" class="btn btn-secondary" disabled title="Available in Stage 2">Export user list (Stage 2)</button></div> -->
 </div>
 
 <section aria-labelledby="queueHeading" class="mb-4">
@@ -45,8 +44,6 @@
             <td>
               <% if (u.accountState === 'pending_approval') { %>
                 <button type="button" class="btn btn-sm btn-primary btn-approve" data-user-id="<%= u._id %>" data-user-name="<%= u.name %>">Approve</button>
-              <% } else { %>
-                <button type="button" class="btn btn-sm btn-secondary" data-preview-action="Suspending a user is recorded in Stage 2. Nothing was changed.">Suspend</button>
               <% } %>
             </td>
           </tr>

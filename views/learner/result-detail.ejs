@@ -3,10 +3,6 @@
   <a href="/results">Results</a><span aria-hidden="true">/</span><span aria-current="page"><%= result.courseName %></span>
 </nav>
 
-<% if (result.isSample) { %>
-  <%- include('../partials/flash', { flash: [{ type: 'warning', message: 'This is a sample result built from mock answers. It does not reflect what you selected. Real scoring happens on the server in Stage 2.' }] }) %>
-<% } %>
-
 <div class="result-page">
   <div class="page-header">
     <div>
@@ -17,114 +13,124 @@
     </div>
   </div>
 
-  <% if (result.kind === 'weekly') { %>
-    <% const evaluated = result.subjective.status === 'evaluated'; %>
-    <section class="result-summary" aria-labelledby="scoreHeading">
-      <div class="result-score-circle">
-        <% if (evaluated) { %>
-          <span class="score-value"><%= result.total.earned %></span><span class="score-label">out of <%= result.total.max %></span>
-        <% } else { %>
-          <span class="score-value"><%= result.mcq.earned %></span><span class="score-label">MCQ of <%= result.mcq.max %></span>
+  <section class="result-summary" aria-labelledby="scoreHeading">
+    <div class="result-score-circle">
+      <span class="score-value"><%= result.total.earned %></span>
+      <span class="score-label"><%= result.total.provisional ? 'provisional MCQ score' : 'out of ' + result.total.max %></span>
+    </div>
+    <div class="result-breakdown">
+      <h2 id="scoreHeading" class="section-title"><%= result.total.provisional ? 'Objective score' : 'Final score' %></h2>
+      <div class="result-section">
+        <div class="result-section-header">
+          <span>MCQs</span><span><%= result.objective.earned %>/<%= result.objective.max %></span>
+        </div>
+        <p class="text-secondary text-small mt-1">Scored on the server from your submitted answers.</p>
+      </div>
+      <div class="result-section">
+        <div class="result-section-header">
+          <span>Written answers</span>
+          <span><%= result.subjective.status === 'evaluated' ? result.subjective.earned + '/' + result.subjective.max : 'Pending evaluation' %></span>
+        </div>
+        <% if (result.subjective.status === 'evaluation_pending') { %>
+          <p class="text-secondary text-small mt-1"><%= result.subjective.pendingCount %> response<%= result.subjective.pendingCount === 1 ? '' : 's' %> awaiting evaluation. No zero score has been assigned while evaluation is pending.</p>
         <% } %>
       </div>
-      <div class="result-breakdown">
-        <h2 id="scoreHeading" class="section-title"><%= evaluated ? 'Combined score' : 'MCQ score' %></h2>
-        <div class="result-section">
-          <div class="result-section-header"><span>MCQs (+2 correct, no negative marking)</span><span><%= result.mcq.earned %>/<%= result.mcq.max %></span></div>
-          <div class="progress-bar" role="progressbar" aria-label="MCQ score" aria-valuenow="<%= result.mcq.earned %>" aria-valuemin="0" aria-valuemax="<%= result.mcq.max %>"><div class="progress-fill" style="width: <%= fmt.percent(result.mcq.earned, result.mcq.max) %>%"></div></div>
-          <p class="text-secondary text-small mt-1"><%= result.mcq.correct %> correct, <%= result.mcq.incorrect %> incorrect, <%= result.mcq.unanswered %> unanswered</p>
-        </div>
-        <div class="result-section">
-          <div class="result-section-header"><span>Subjective</span><span><%= evaluated ? result.subjective.earned + '/' + result.subjective.max : 'Pending' %></span></div>
-          <% if (evaluated) { %>
-          <div class="progress-bar" role="progressbar" aria-label="Subjective score" aria-valuenow="<%= result.subjective.earned %>" aria-valuemin="0" aria-valuemax="<%= result.subjective.max %>"><div class="progress-fill" style="width: <%= fmt.percent(result.subjective.earned, result.subjective.max) %>%"></div></div>
-          <% } %>
-        </div>
-      </div>
-    </section>
-
-    <% if (!evaluated) { %>
-    <div class="alert alert-info" role="status">
-      <span><strong>Subjective evaluation pending.</strong> Your combined score, feedback and leaderboard rank appear once it finishes. Your MCQ score is final.</span>
     </div>
-    <% } else { %>
-    <section class="feedback-card" aria-labelledby="feedbackHeading">
-      <div class="flex-between mb-3">
-        <h2 id="feedbackHeading" class="section-title">Subjective feedback</h2>
-        <span class="badge badge-info"><%= constants.EVALUATION_LABEL %></span>
-      </div>
-      <div class="feedback-criterion">
-        <p class="feedback-label">Score <span class="feedback-score"><%= result.feedback.score %></span></p>
-        <div class="table-responsive">
-          <table class="table">
-            <caption class="visually-hidden">Rubric breakdown</caption>
-            <thead><tr><th scope="col">Criterion</th><th scope="col">Marks</th><th scope="col">Comment</th></tr></thead>
+  </section>
+
+  <% if (result.subjective.status === 'evaluation_pending') { %>
+    <div class="alert alert-info" role="status"><span>Your objective score is provisional. The combined result will be available after written evaluation completes.</span></div>
+  <% } %>
+  <p class="text-secondary text-small">Submission: <%= result.submittedVia === 'automatic' ? 'automatic at the deadline' : 'manual' %> · Attempt state: <%= fmt.label(result.state) %></p>
+<% if (result.subjectiveFeedback && result.subjectiveFeedback.length > 0) { %>
+  <section class="result-feedback mt-6" aria-labelledby="feedbackHeading">
+    <h2 id="feedbackHeading" class="section-title">Written answer feedback</h2>
+
+    <% for (const item of result.subjectiveFeedback) { %>
+      <div class="result-section mb-4">
+
+        <div class="result-section-header">
+          <span>
+            <% if (item.questionNumber) { %>Q<%= item.questionNumber %> — <% } %>
+            <em class="text-secondary"><%= item.promptPreview %><% if (item.promptPreview.length >= 200) { %>…<% } %></em>
+          </span>
+          <span>
+            <% if (item.score !== null) { %>
+              <%= item.score %>/<%= item.maxMarks %>
+            <% } else { %>
+              —/<%= item.maxMarks %>
+            <% } %>
+          </span>
+        </div>
+
+        <% if (item.requiresHumanReview) { %>
+          <div class="alert alert-info mt-2" role="note">
+            <span>This answer has been flagged for human review. The score shown may be revised.</span>
+          </div>
+        <% } %>
+
+        <% if (item.summary) { %>
+          <p class="mt-2"><%= item.summary %></p>
+        <% } %>
+
+        <% if (item.criterionMarks && item.criterionMarks.length > 0) { %>
+          <table class="result-table mt-2" aria-label="Criterion breakdown">
+            <thead>
+              <tr><th>Criterion</th><th>Awarded</th><th>Max</th></tr>
+            </thead>
             <tbody>
-              <% result.feedback.breakdown.forEach(function (b) { %>
-              <tr><td><%= b.criterion %></td><td><%= b.marks %></td><td><%= b.comment %></td></tr>
-              <% }) %>
+              <% for (const c of item.criterionMarks) { %>
+                <tr>
+                  <td><%= c.criterion %></td>
+                  <td><%= c.awarded %></td>
+                  <td><%= c.max %></td>
+                </tr>
+              <% } %>
             </tbody>
           </table>
-        </div>
-      </div>
-      <div class="feedback-criterion"><p class="feedback-label">What you answered correctly</p><p><%= result.feedback.whatCorrect %></p></div>
-      <div class="feedback-criterion"><p class="feedback-label">Where your answer went wrong or was incomplete</p><p><%= result.feedback.whatWrong %></p></div>
-      <div class="feedback-criterion"><p class="feedback-label">What you could have added</p><p><%= result.feedback.couldAdd %></p></div>
-      <div class="feedback-criterion"><p class="feedback-label">A stronger structure</p><p><%= result.feedback.betterStructure %></p></div>
-    </section>
-    <% } %>
+        <% } %>
 
-    <% if (result.review) { %>
-    <section aria-labelledby="reviewHeading">
-      <h2 id="reviewHeading" class="section-title">MCQ review</h2>
-      <% result.review.forEach(function (q) { %>
-      <article class="question-card review-card <%= q.state === 'correct' ? 'review-correct' : q.state === 'incorrect' ? 'review-incorrect' : '' %>">
-        <div class="question-header">
-          <span class="question-number" aria-hidden="true"><%= q.number %></span>
-          <div>
-            <p class="question-prompt"><span class="visually-hidden">Question <%= q.number %>. </span><%= q.prompt %></p>
-            <span class="question-origin-badge"><%= q.badge %></span>
-            <span class="badge <%= q.state === 'correct' ? 'badge-success' : q.state === 'incorrect' ? 'badge-danger' : 'badge-muted' %>"><%= q.state === 'correct' ? 'Correct, +2' : q.state === 'incorrect' ? 'Incorrect, 0' : 'Unanswered, 0' %></span>
+        <% if (item.strengths && item.strengths.length > 0) { %>
+          <div class="mt-2">
+            <p class="text-small text-secondary">Strengths</p>
+            <ul>
+              <% for (const point of item.strengths) { %>
+                <li><%= point %></li>
+              <% } %>
+            </ul>
           </div>
-        </div>
-        <ul class="options-list review-options">
-          <% q.options.forEach(function (o) { %>
-          <li class="option-item<%= o.id === q.correctId ? ' is-correct' : (o.id === q.selectedId ? ' is-wrong' : '') %>">
-            <span class="option-letter"><%= o.id %></span>
-            <span class="option-text"><%= o.text %>
-              <% if (o.id === q.correctId) { %><span class="option-tag">Correct answer</span><% } %>
-              <% if (o.id === q.selectedId) { %><span class="option-tag">Your answer</span><% } %>
-            </span>
-          </li>
-          <% }) %>
-        </ul>
-        <div class="explanation-box"><strong>Explanation.</strong> <%= q.explanation %></div>
-      </article>
-      <% }) %>
-    </section>
-    <% } else { %>
-    <div class="alert alert-info"><span>A question-by-question MCQ review isn't part of the Stage 1 mock data for this attempt.</span></div>
-    <% } %>
+        <% } %>
 
-  <% } else { %>
-    <section class="result-summary" aria-labelledby="scoreHeading">
-      <div class="result-score-circle"><span class="score-value"><%= result.total.earned %></span><span class="score-label">out of <%= result.total.max %></span></div>
-      <div class="result-breakdown">
-        <h2 id="scoreHeading" class="section-title">Section scores</h2>
-        <% result.sections.forEach(function (sec) { %>
-        <div class="result-section">
-          <div class="result-section-header"><span><%= sec.label %></span><span><%= sec.earned %>/<%= sec.max %></span></div>
-          <div class="progress-bar" role="progressbar" aria-label="<%= sec.label %>" aria-valuenow="<%= sec.earned %>" aria-valuemin="0" aria-valuemax="<%= sec.max %>"><div class="progress-fill" style="width: <%= fmt.percent(sec.earned, sec.max) %>%"></div></div>
-        </div>
-        <% }) %>
+        <% if (item.missingPoints && item.missingPoints.length > 0) { %>
+          <div class="mt-2">
+            <p class="text-small text-secondary">Missing points</p>
+            <ul>
+              <% for (const point of item.missingPoints) { %>
+                <li><%= point %></li>
+              <% } %>
+            </ul>
+          </div>
+        <% } %>
+
+        <% if (item.incorrectPoints && item.incorrectPoints.length > 0) { %>
+          <div class="mt-2">
+            <p class="text-small text-secondary">Incorrect points</p>
+            <ul>
+              <% for (const point of item.incorrectPoints) { %>
+                <li><%= point %></li>
+              <% } %>
+            </ul>
+          </div>
+        <% } %>
+
       </div>
-    </section>
-    <div class="alert alert-info"><span>Question-by-question feedback for monthly simulations arrives with the evaluation service in Stage 2. <%= constants.SIMULATION_PATTERN_NOTICE %></span></div>
-  <% } %>
-
+    <% } %>
+  </section>
+<% } %>
   <div class="flex gap-2 mt-4">
     <a class="btn btn-primary" href="/dashboard">Back to dashboard</a>
     <a class="btn btn-secondary" href="<%= result.kind === 'monthly' ? '/monthly' : '/weekly' %>"><%= result.kind === 'monthly' ? 'Monthly Revision' : 'Weekly sprints' %></a>
+    <a class="btn btn-secondary" href="<%= result.kind === 'monthly' ? '/monthly/' + result.assessmentId + '/attempt?retake=1' : '/weekly/' + result.assessmentId + '?retake=1' %>">Retake exam</a>
   </div>
 </div>
 <%- include('../layouts/footer') %>

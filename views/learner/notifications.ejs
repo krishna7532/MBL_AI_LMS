@@ -2,18 +2,17 @@
 <div class="page-header">
   <div>
     <h1 class="page-title">Notifications</h1>
-    <p class="page-subtitle">Updates about releases, evaluations and your trial.</p>
+    <p class="page-subtitle">Notifications saved to your account.</p>
   </div>
-  <div class="page-actions"><button type="button" class="btn btn-secondary" id="markAllRead">Mark all as read</button></div>
 </div>
 
 <% if (notifications.length) { %>
 <ul class="notification-list">
   <% notifications.forEach(function (n) { %>
-  <li class="notification-item<%= n.read ? '' : ' unread' %>">
+  <li class="notification-item">
     <span class="notification-icon" aria-hidden="true"><%- icon(n.type === 'evaluation_complete' ? 'check' : n.type === 'trial_reminder' ? 'clock' : n.type === 'leaderboard_update' ? 'trophy' : n.type === 'simulation_available' ? 'calendar' : 'file') %></span>
     <div class="notification-body">
-      <p class="notification-title"><%= n.title %><% if (!n.read) { %> <span class="badge badge-primary unread-badge">New</span><% } %></p>
+      <p class="notification-title"><%= n.title %></p>
       <p class="text-secondary text-small"><%= n.message %></p>
       <p class="text-muted text-small"><%= fmt.dateTime(n.createdAt) %></p>
     </div>

@@ -35,55 +35,56 @@
   </div>
 </section>
 
-<form id="adminSettingsForm" novalidate>
-  <section class="settings-section" aria-labelledby="blueprintHeading">
+<section class="settings-section" aria-labelledby="blueprintHeading">
     <div class="settings-section-header" id="blueprintHeading">Assessment blueprints</div>
     <div class="settings-section-body">
       <fieldset class="settings-fieldset">
         <legend class="settings-legend">Weekly sprint</legend>
         <div class="form-row">
-          <div class="form-group"><label class="form-label" for="wMcqs">MCQs per sprint</label><input class="form-control" id="wMcqs" type="number" value="<%= wk.mcqs %>" min="1"></div>
-          <div class="form-group"><label class="form-label" for="wMcqMarks">Marks per MCQ</label><input class="form-control" id="wMcqMarks" type="number" value="<%= wk.mcqMarks %>" min="1"></div>
-          <div class="form-group"><label class="form-label" for="wSubj">Subjective marks</label><input class="form-control" id="wSubj" type="number" value="<%= wk.subjectiveMarks %>" min="1"></div>
+          <div class="form-group"><label class="form-label" for="wMcqs">MCQs per sprint</label><input class="form-control" id="wMcqs" type="number" value="<%= wk.mcqs %>" readonly></div>
+          <div class="form-group"><label class="form-label" for="wMcqMarks">Marks per MCQ</label><input class="form-control" id="wMcqMarks" type="number" value="<%= wk.mcqMarks %>" readonly></div>
+          <div class="form-group"><label class="form-label" for="wSubj">Subjective marks</label><input class="form-control" id="wSubj" type="number" value="<%= wk.subjectiveMarks %>" readonly></div>
         </div>
-        <div class="form-check"><input class="form-check-input" type="checkbox" id="wNeg"<%= wk.negativeMarking ? ' checked' : '' %>><label class="form-check-label" for="wNeg">Negative marking</label></div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" id="wNeg"<%= wk.negativeMarking ? ' checked' : '' %> disabled><label class="form-check-label" for="wNeg">Negative marking</label></div>
         <p class="form-text">Maximum score per sprint: <%= wk.max %>.</p>
       </fieldset>
 
       <fieldset class="settings-fieldset">
         <legend class="settings-legend">Monthly simulation</legend>
         <div class="form-row">
-          <div class="form-group"><label class="form-label" for="mDur">Duration (minutes)</label><input class="form-control" id="mDur" type="number" value="<%= mo.durationMinutes %>" min="1"></div>
-          <div class="form-group"><label class="form-label" for="mPass">Passages</label><input class="form-control" id="mPass" type="number" value="<%= mo.passages %>" min="0"></div>
-          <div class="form-group"><label class="form-label" for="mPer">MCQs per passage</label><input class="form-control" id="mPer" type="number" value="<%= mo.mcqsPerPassage %>" min="1"></div>
+          <div class="form-group"><label class="form-label" for="mDur">Duration (minutes)</label><input class="form-control" id="mDur" type="number" value="<%= mo.durationMinutes %>" readonly></div>
+          <div class="form-group"><label class="form-label" for="mPass">Passages</label><input class="form-control" id="mPass" type="number" value="<%= mo.passages %>" readonly></div>
+          <div class="form-group"><label class="form-label" for="mPer">MCQs per passage</label><input class="form-control" id="mPer" type="number" value="<%= mo.mcqsPerPassage %>" readonly></div>
         </div>
         <div class="form-row">
-          <div class="form-group"><label class="form-label" for="mMarks">Marks per MCQ</label><input class="form-control" id="mMarks" type="number" value="<%= mo.mcqMarks %>" min="1"></div>
-          <div class="form-group"><label class="form-label" for="mB">Part B questions</label><input class="form-control" id="mB" type="number" value="<%= mo.partB %>" min="0"></div>
-          <div class="form-group"><label class="form-label" for="mC">Part C questions</label><input class="form-control" id="mC" type="number" value="<%= mo.partC %>" min="0"></div>
+          <div class="form-group"><label class="form-label" for="mMarks">Marks per MCQ</label><input class="form-control" id="mMarks" type="number" value="<%= mo.mcqMarks %>" readonly></div>
+          <div class="form-group"><label class="form-label" for="mB">Part B questions</label><input class="form-control" id="mB" type="number" value="<%= mo.partB %>" readonly></div>
+          <div class="form-group"><label class="form-label" for="mC">Part C questions</label><input class="form-control" id="mC" type="number" value="<%= mo.partC %>" readonly></div>
         </div>
-        <div class="form-check mb-1"><input class="form-check-input" type="checkbox" id="mPause"<%= mo.pause ? ' checked' : '' %>><label class="form-check-label" for="mPause">Allow pause</label></div>
-        <div class="form-check"><input class="form-check-input" type="checkbox" id="mCompulsory"<%= mo.allCompulsory ? ' checked' : '' %>><label class="form-check-label" for="mCompulsory">All questions compulsory (no choice)</label></div>
+        <div class="form-check mb-1"><input class="form-check-input" type="checkbox" id="mPause"<%= mo.pause ? ' checked' : '' %> disabled><label class="form-check-label" for="mPause">Allow pause</label></div>
+        <% if (mo.allCompulsory !== null) { %>
+          <div class="form-check"><input class="form-check-input" type="checkbox" id="mCompulsory"<%= mo.allCompulsory ? ' checked' : '' %> disabled><label class="form-check-label" for="mCompulsory">All questions compulsory (no choice)</label></div>
+        <% } %>
         <p class="form-text">Maximum score: <%= mo.max %> (<%= mo.passages * mo.mcqsPerPassage * mo.mcqMarks %> + <%= mo.partB * mo.subjectiveMarks %> + <%= mo.partC * mo.subjectiveMarks %>).</p>
       </fieldset>
     </div>
   </section>
 
-  <section class="settings-section" aria-labelledby="aiHeading">
+<section class="settings-section" aria-labelledby="aiHeading">
     <div class="settings-section-header" id="aiHeading">AI evaluation</div>
     <div class="settings-section-body">
-      <div class="config-item"><div class="config-info"><h3>Provider</h3><p><%= settings.ai.provider %></p></div><span class="status-dot inactive" aria-hidden="true"></span></div>
+      <div class="config-item"><div class="config-info"><h3>Provider</h3><p><%= settings.ai.provider %></p></div><span class="status-dot <%= settings.ai.configured ? 'active' : 'inactive' %>" aria-hidden="true"></span><span class="text-small"><%= settings.ai.configured ? 'API key configured' : 'API key missing' %></span></div>
       <div class="config-item"><div class="config-info"><h3>Model and prompt version</h3><p><%= settings.ai.model %> · prompt <%= settings.ai.promptVersion %></p></div></div>
       <div class="config-item">
         <div class="config-info"><h3>Maximum answer length</h3><p><%= settings.ai.note %></p></div>
-        <div><label class="visually-hidden" for="aiMaxChars">Maximum answer characters</label><input class="form-control" id="aiMaxChars" type="number" value="<%= settings.ai.maxAnswerChars %>" min="500"></div>
+        <div><label class="visually-hidden" for="aiMaxChars">Maximum answer characters</label><input class="form-control" id="aiMaxChars" type="number" value="<%= settings.ai.maxAnswerChars %>" readonly></div>
       </div>
+      <details class="settings-prompt">
+        <summary>View Gemini evaluation prompt template</summary>
+        <p class="form-text">Placeholders are filled with the question, rubric, marks, and learner answer during evaluation.</p>
+        <pre class="settings-prompt-content"><%= settings.ai.prompt %></pre>
+      </details>
     </div>
   </section>
 
-  <div class="flex gap-2 mb-4">
-    <button type="submit" class="btn btn-primary">Save as new version</button>
-    <span class="text-secondary text-small settings-note">Stage 1: nothing is saved.</span>
-  </div>
-</form>
 <%- include('../layouts/footer') %>

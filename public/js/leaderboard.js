@@ -14,6 +14,10 @@ document.addEventListener('DOMContentLoaded', function () {
       t.tabIndex = on ? 0 : -1;
     });
     panels.forEach(function (p) { p.classList.toggle('active', p.id === target); });
+    var tabInput = document.querySelector('form[data-autosubmit] input[name="tab"]');
+    if (tabInput) {
+      tabInput.value = target === 'panel-cumulative' ? 'cumulative' : 'weekly';
+    }
     if (focus) tab.focus();
     try {
       var url = new URL(window.location.href);

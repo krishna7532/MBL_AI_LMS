@@ -1,21 +1,19 @@
 'use strict';
 
-/**
- * STAGE 1: display-only admin screens. No role check exists yet, and none of the
- * buttons persist anything. Server-side RBAC and audit logging are Stage 2 (PRD §4, §12.4).
- */
-const mock = require('../services/mockService');
+/** Administrator page handlers and transactional approval actions. */
+const dataService = require('../services/lmsDataService');
 const adminQueries = require('../query/adminQueries');
 const { syncReleaseApprovals } = require('../services/releaseApprovalService');
 const prisma = require('../config/db');
 
 const base = { pageStyles: ['admin'], pageScripts: ['admin'] };
 
+// Renders administrator dashboard with user, subscription, and trial counts
 exports.dashboard = async (req, res, next) => {
   try {
     const counts = await adminQueries.getDashboardStats();
 
-    const data = await mock.getAdminOverview();
+    const data = await dataService.getAdminOverview();
     data.stats = {
       ...data.stats,
       totalUsers: counts.total_users,
@@ -30,11 +28,17 @@ exports.dashboard = async (req, res, next) => {
   }
 };
 
-exports.users = async (req, res) => {
-  const data = await mock.getAdminUsers();
-  res.render('admin/users', { ...base, title: 'Users & approvals', data });
+// Renders the list of users, pending applications, and approval history
+exports.users = async (req, res, next) => {
+  try {
+    const data = await dataService.getAdminUsers();
+    return res.render('admin/users', { ...base, title: 'Users & approvals', data });
+  } catch (error) {
+    return next(error);
+  }
 };
 
+// Records an admin approval or rejection for a trial application
 exports.decision = async (req, res, next) => {
   const userId = req.params.userId;
   const decision = req.body && req.body.decision;
@@ -82,14 +86,17 @@ exports.decision = async (req, res, next) => {
   }
 };
 
+// Displays imported revision notes awaiting review
 exports.content = async (req, res, next) => {
   try {
-    const items = await mock.getContentItems();
+    const items = await dataService.getContentItems();
     return res.render('admin/content', { ...base, title: 'Content management', items });
   } catch (error) {
     return next(error);
   }
 };
+
+// Marks a revision note as approved and synchronizes parent release approval
 exports.approveNote = async (req, res, next) => {
   try {
     const noteId = req.params.noteId;
@@ -135,14 +142,17 @@ exports.approveNote = async (req, res, next) => {
   }
 };
 
+// Lists assessment questions awaiting content approval
 exports.assessments = async (req, res, next) => {
   try {
-    const items = await mock.getAssessmentItems();
+    const items = await dataService.getAssessmentItems();
     return res.render('admin/assessments', { ...base, title: 'Assessment management', items });
   } catch (error) {
     return next(error);
   }
 };
+
+// Approves a question; promotes assessment and release when all items are approved
 exports.approveAssessment = async (req, res, next) => {
   try {
     const questionId = req.params.questionId;
@@ -245,31 +255,41 @@ exports.approveAssessment = async (req, res, next) => {
     return next(error);
   }
 };
+
+// Lists content releases with their publishing statuses
 exports.releases = async (req, res, next) => {
   try {
-    const releases = await mock.getReleases();
+    const releases = await dataService.getReleases();
     return res.render('admin/releases', { ...base, title: 'Release management', releases });
   } catch (error) {
     return next(error);
   }
 };
 
+// Renders the chronological audit logs view
 exports.auditLogs = async (req, res, next) => {
   try {
-    const logs = await mock.getAuditLogs();
+    const logs = await dataService.getAuditLogs();
     return res.render('admin/audit-logs', { ...base, title: 'Audit log', logs });
   } catch (error) {
     return next(error);
   }
 };
 
-exports.settings = (req, res) =>
-  res.render('admin/settings', { ...base, title: 'Settings', settings: mock.getAdminSettings() });
+// Renders admin settings and application status
+exports.settings = async (req, res, next) => {
+  try {
+    const settings = await dataService.getAdminSettings();
+    return res.render('admin/settings', { ...base, title: 'Settings', settings });
+  } catch (error) {
+    return next(error);
+  }
+};
 
-
+// Renders markdown preview for a revision note
 exports.contentPreview = async (req, res, next) => {
   try {
-    const note = await mock.getRevisionNotePreview(req.params.noteId);
+    const note = await dataService.getRevisionNotePreview(req.params.noteId);
     return res.render('admin/content-preview', {
       ...base,
       title: `Preview: ${note.stableId}`,
@@ -280,9 +300,10 @@ exports.contentPreview = async (req, res, next) => {
   }
 };
 
+// Renders question preview showing stem, options, and rubric
 exports.assessmentPreview = async (req, res, next) => {
   try {
-    const assessment = await mock.getAssessmentPreview(req.params.assessmentId);
+    const assessment = await dataService.getAssessmentPreview(req.params.assessmentId);
     if (!assessment) {
       const error = new Error('Assessment question not found.');
       error.status = 404;

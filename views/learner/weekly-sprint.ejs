@@ -22,30 +22,11 @@
   <span><strong><%= constants.REVISION_ONLY %>.</strong> A sprint is 30 minutes: 15 minutes of notes, 10 minutes of MCQs and a 5-minute subjective outline. Maximum 40 marks.</span>
 </div>
 
-<% if (!page.hasContent) { %>
-  <div class="empty-state card">
-    <div class="empty-state-icon" aria-hidden="true"><%- icon('info', 40) %></div>
-    <h2 class="empty-state-title">No preview content for this sprint</h2>
-    <p class="empty-state-text">Stage 1 has full mock content for the Contract Law Week 7 sprint only. Real releases supply the notes, MCQs and subjective question for every course.</p>
-    <div class="flex gap-2 justify-center">
-      <% if (page.resultHref) { %><a class="btn btn-secondary" href="<%= page.resultHref %>">View sample result</a><% } %>
-      <a class="btn btn-primary" href="/weekly/sprint_w07_C01">Open the Contract Law sprint</a>
-    </div>
-  </div>
-<% } else { %>
-
 <ol class="sprint-steps" aria-label="Sprint steps">
   <li class="step step-notes"><span class="step-name">Revision notes</span><span class="step-time">15 min</span></li>
   <li class="step step-mcq"><span class="step-name">15 MCQs</span><span class="step-time">10 min</span></li>
   <li class="step step-subjective"><span class="step-name">Subjective outline</span><span class="step-time">5 min</span></li>
 </ol>
-
-<div class="sprint-tabs" role="tablist" aria-label="Sprint sections">
-  <button type="button" class="sprint-tab-link active" role="tab" id="tab-notes" data-tab="notes" aria-selected="true" aria-controls="pane-notes">Notes</button>
-  <button type="button" class="sprint-tab-link" role="tab" id="tab-mcq" data-tab="mcq" aria-selected="false" aria-controls="pane-mcq" tabindex="-1">MCQs <span class="tab-count" id="mcqTabCount">0/15</span></button>
-  <button type="button" class="sprint-tab-link" role="tab" id="tab-subjective" data-tab="subjective" aria-selected="false" aria-controls="pane-subjective" tabindex="-1">Subjective</button>
-</div>
-
 <!-- NOTES -->
 <section class="sprint-tab-pane active" id="pane-notes" role="tabpanel" aria-labelledby="tab-notes" data-tab="notes">
   <article class="notes-reader">
@@ -112,7 +93,7 @@
       <label class="form-label mt-3" for="assumptions">Assumptions (optional)</label>
       <p class="form-text" id="assumptionsHelp">State any additional facts you assumed.</p>
       <textarea id="assumptions" name="assumptions" class="assumptions-field" rows="3" maxlength="<%= page.limits.assumptionsMaxChars %>" aria-describedby="assumptionsHelp"></textarea>
-      <p class="save-indicator" id="saveIndicator" aria-live="polite">Draft saved on this device only.</p>
+      <p class="save-indicator" id="saveIndicator" aria-live="polite">Answers are saved to your account automatically.</p>
     </div>
   </div>
 </section>
@@ -120,6 +101,10 @@
 <!-- SUBMIT BAR -->
 <div class="submit-bar">
   <p class="submit-bar-status" id="submitStatus" aria-live="polite">MCQs answered: 0 of 15. Subjective: not started.</p>
+  <div class="timer-display" role="timer" aria-label="Time remaining">
+    <span id="timerDisplay" data-duration="<%= page.attempt.durationMinutes %>" data-expires-at="<%= new Date(page.attempt.expiresAt).getTime() %>" data-server-now="<%= Date.now() %>" data-attempt-id="<%= page.attempt.id %>">--:--:--</span>
+  </div>
+  <p class="save-indicator" id="autosaveStatus" aria-live="polite">Loading saved answers</p>
   <button type="button" class="btn btn-primary" id="submitSprintBtn" data-modal-open="submitSprintModal">Submit sprint</button>
 </div>
 
@@ -130,19 +115,29 @@
     <div class="modal-body">
       <p id="submitSummary"></p>
       <p class="text-secondary text-small mt-2">After you submit, you can't change this attempt. You can retake the sprint later as a new attempt.</p>
-      <div class="alert alert-warning mt-3"><span><strong>Stage 1 preview.</strong> Your answers are not scored or saved on a server. Submitting opens a sample result built from mock answers.</span></div>
+      <div class="alert alert-info mt-3"><span>Your answers are autosaved to your account. MCQs are scored when you submit; written evaluation may remain pending.</span></div>
+      <p class="alert alert-warning mt-3" id="weeklySubmissionStatus" role="status" hidden></p>
     </div>
     <div class="modal-footer">
       <button type="button" class="btn btn-secondary" data-modal-close>Keep working</button>
-      <button type="button" class="btn btn-primary" id="confirmSubmitBtn">Submit and view sample result</button>
+      <button type="button" class="btn btn-primary" id="confirmSubmitBtn">Submit sprint</button>
     </div>
   </div>
 </div>
 
 <%
   // Learner-safe payload: options and prompts only. No correct answers or explanations (PRD §15.1).
-  const clientData = { sprintId: s.id || s._id, mcqs: page.mcqs, subjectiveMax: page.limits.subjectiveMaxChars, resultUrl: '/results/attempt_preview' };
+  const clientData = {
+    sprintId: s.id || s._id,
+    attemptId: page.attempt.id,
+    savedResponses: page.attempt.savedResponses,
+    autosaveUrl: page.attempt.autosaveUrl,
+    submitUrl: page.attempt.submitUrl,
+    resultUrl: page.attempt.resultUrl,
+    mcqs: page.mcqs,
+    subjective: page.subjective,
+    subjectiveMax: page.limits.subjectiveMaxChars
+  };
 %>
 <script type="application/json" id="mcqData"><%- fmt.json(clientData) %></script>
-<% } %>
 <%- include('../layouts/footer') %>

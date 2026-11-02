@@ -1,5 +1,6 @@
 'use strict';
 
+// Retrieves active terms and privacy consents accepted by the user
 exports.getActiveConsents = async (prisma, userId) =>
   prisma.consents.findMany({
     where: {
@@ -10,6 +11,7 @@ exports.getActiveConsents = async (prisma, userId) =>
     select: { consent_type: true },
   });
 
+// Records a newly accepted user consent with policy version and timestamp
 exports.insertConsent = async (prisma, userId, consentType, policyVersion) =>
   prisma.consents.create({
     data: {

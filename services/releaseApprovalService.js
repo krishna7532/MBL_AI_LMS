@@ -1,5 +1,6 @@
 'use strict';
 
+// Synchronizes release-level approval status based on individual notes and assessments approval states
 async function syncReleaseApprovals(transaction, releaseId, actorId) {
   const release = await transaction.content_releases.findUnique({
     where: { id: releaseId },

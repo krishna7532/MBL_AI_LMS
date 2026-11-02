@@ -270,6 +270,12 @@
 .settings-section-body {
   padding: 1.5rem;
 }
+.settings-prompt-content {
+  max-height: 32rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .config-item {
   display: flex;
   justify-content: space-between;

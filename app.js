@@ -7,15 +7,14 @@ const config = require('./config');
 const constants = require('./config/constants');
 const format = require('./services/format');
 const icon = require('./services/icons');
-const mockContext = require('./middleware/mockContext');
+const viewContext = require('./middleware/viewContext');
 const notFound = require('./middleware/notFound');
 const errorHandler = require('./middleware/errorHandler');
-
-const multer = require('multer');
 
 const session=require('express-session');
 const passport = require('./config/passport');
 const authRoutes = require('./routes/auth');
+const paymentController = require('./controllers/paymentController');
 require('dotenv').config();
 
 const systemQueries = require('./query/systemQueries');
@@ -35,20 +34,26 @@ app.locals.icon = icon;
 const sessionOption={
     secret: process.env.SESSION_SECRET,
     resave: false,
-    saveUninitialized: false
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: config.isProduction,
+    },
 }
 app.use(session(sessionOption));
 
-//for database connection
-app.use(express.json());
+// Razorpay signs the exact request bytes, so this endpoint must run before JSON parsing.
+app.post(
+  '/api/payments/webhook',
+  express.raw({ type: 'application/json', limit: '256kb' }),
+  paymentController.webhook
+);
 
-//for multer use
-app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError) {
-    return res.status(400).render('admin/releases', { error: `Upload error: ${err.message}`, success: null });
-  }
-  next(err);
-});
+//for database connection
+app.use(express.json({ limit: '256kb' }));
+
+// Exposes a simple database connectivity check for operations.
 app.get("/api/test-db", async (req, res) => {
     try {
         const result = await systemQueries.getDatabaseTime();
@@ -59,12 +64,11 @@ app.get("/api/test-db", async (req, res) => {
             time: result[0].now
         });
     } catch (error) {
-        console.error("Database health check failed:", error.code || error.name);
+        console.error("Database health check failed:", error);
 
-        res.status(500).json({
+        return res.status(503).json({
             success: false,
-            message: "Database connection failed",
-            error: "Database connection failed"
+            message: "The service is temporarily unavailable. Please try again later."
         });
     }
 });
@@ -72,6 +76,7 @@ app.get("/api/test-db", async (req, res) => {
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Makes the current authentication state available to templates.
 app.use((req, res, next) => {
   res.locals.isAuthenticated = !!(req.user && req.user.email);
   if (req.user) {
@@ -81,6 +86,7 @@ app.use((req, res, next) => {
 });
 
 // Baseline security headers. Full CSP / CSRF / rate limiting are Stage 2 work.
+// Adds baseline browser security headers to every response.
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
@@ -91,9 +97,11 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: config.isProduction ? '1h' : 0 }));
 app.use(express.urlencoded({ extended: false }));
 
-app.use(mockContext);
+app.use(viewContext);
 
 app.use('/', require('./routes/auth'));
+app.use('/api/payments', require('./routes/payments'));
+app.use('/api', require('./routes/examApi'));
 app.use('/admin', require('./routes/admin'));
 app.use('/', require('./routes/learner'));
 

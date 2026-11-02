@@ -46,7 +46,7 @@
     </div>
   </div>
   <% }) %>
-  <% if (!isAdminArea && user.trial && user.trial.isActive) { %>
+  <% if (user && !isAdminArea && user.trial && user.trial.isActive) { %>
   <div class="sidebar-trial">
     <p class="sidebar-trial-title">Trial</p>
     <p><%= user.trial.daysRemaining %> days left · ends <%= fmt.date(user.trial.endDate) %></p>
