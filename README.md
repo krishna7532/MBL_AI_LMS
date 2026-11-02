@@ -14,9 +14,6 @@ npm run dev      # nodemon, auto-restart
 # or
 npm start
 ```
-
-Open http://localhost:3000 — it redirects to `/login`.
-
 The login page offers a Google sign-in button. New applicants go to `/apply`; existing accounts follow their database role and account state. Configure `DATABASE_URL` for PostgreSQL. Existing installations can continue to use `DB_USER`, `DB_HOST`, `DB_NAME`, `DB_PASSWORD`, and `DB_PORT`; the application and Prisma commands convert them to a connection URL without logging credentials.
 
 ## Application features
