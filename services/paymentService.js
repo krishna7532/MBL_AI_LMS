@@ -57,6 +57,32 @@ function addYears(date, years) {
   return endDate;
 }
 
+// Adds calendar months without allowing the day to roll into the following month.
+function addMonths(date, months) {
+  const endDate = new Date(date);
+  const targetMonth = endDate.getUTCMonth() + months;
+  const target = new Date(Date.UTC(
+    endDate.getUTCFullYear(),
+    targetMonth,
+    1,
+    endDate.getUTCHours(),
+    endDate.getUTCMinutes(),
+    endDate.getUTCSeconds(),
+    endDate.getUTCMilliseconds()
+  ));
+  const lastDay = new Date(Date.UTC(
+    target.getUTCFullYear(),
+    target.getUTCMonth() + 1,
+    0
+  )).getUTCDate();
+  target.setUTCDate(Math.min(endDate.getUTCDate(), lastDay));
+  return target;
+}
+
+function daysRemaining(endDate, currentTime) {
+  return Math.max(0, Math.ceil((endDate.getTime() - currentTime.getTime()) / 86400000));
+}
+
 // Validates length and allowed characters for client idempotency keys
 function validIdempotencyKey(value) {
   return typeof value === 'string' &&
@@ -256,19 +282,39 @@ function createPaymentService({
 
   // Grants access only after a payment is confirmed as captured by Razorpay.
   async function activateCapturedPayment(transaction, payment, entity, { rawEvent, checkoutSignature } = {}) {
+    await transaction.$queryRaw`SELECT id FROM payments WHERE id = ${payment.id}::uuid FOR UPDATE`;
+    const storedPayment = await transaction.payments.findUnique({
+      where: { id: payment.id },
+      select: {
+        id: true,
+        user_id: true,
+        plan_id: true,
+        state: true,
+        amount: true,
+        currency: true,
+        razorpay_order_id: true,
+        razorpay_payment_id: true,
+        paid_at: true,
+      },
+    });
+    if (!storedPayment) {
+      return { received: true, processed: true, activated: false };
+    }
+
     if (
       entity.status !== 'captured' ||
-      (payment.razorpay_payment_id && entity.id !== payment.razorpay_payment_id) ||
-      entity.order_id !== payment.razorpay_order_id ||
-      entity.currency !== 'INR' ||
-      Number(entity.amount) !== toPaise(payment.amount)
+      (storedPayment.razorpay_payment_id && entity.id !== storedPayment.razorpay_payment_id) ||
+      entity.order_id !== storedPayment.razorpay_order_id ||
+      entity.currency !== storedPayment.currency ||
+      storedPayment.currency !== 'INR' ||
+      Number(entity.amount) !== toPaise(storedPayment.amount)
     ) {
       throw serviceError(400, 'Captured payment does not match the stored order.');
     }
 
     const changed = await transaction.payments.updateMany({
       where: {
-        id: payment.id,
+        id: storedPayment.id,
         state: { in: ['created', 'authorized', 'failed'] },
       },
       data: {
@@ -280,39 +326,77 @@ function createPaymentService({
         updated_at: now(),
       },
     });
-    if (!changed.count) {
-      const subscription = await transaction.subscriptions.findFirst({
-        where: { payment_id: payment.id, status: 'active' },
-        select: { ends_at: true },
+    if (!changed.count && storedPayment.state !== 'captured') {
+      return { received: true, processed: true, activated: false };
+    }
+    if (!changed.count && storedPayment.state === 'captured' && !storedPayment.razorpay_payment_id) {
+      await transaction.payments.updateMany({
+        where: { id: storedPayment.id, state: 'captured', razorpay_payment_id: null },
+        data: {
+          razorpay_payment_id: entity.id,
+          ...(checkoutSignature ? { razorpay_signature: checkoutSignature } : {}),
+          ...(rawEvent ? { raw_webhook_event: rawEvent } : {}),
+          updated_at: now(),
+        },
       });
+    }
+
+    const currentTime = now();
+    const linkedSubscription = await transaction.subscriptions.findFirst({
+      where: { payment_id: storedPayment.id },
+      select: { user_id: true, starts_at: true, ends_at: true, status: true },
+    });
+    if (linkedSubscription) {
+      const active = linkedSubscription.user_id === storedPayment.user_id &&
+        linkedSubscription.status === 'active' &&
+        linkedSubscription.starts_at <= currentTime &&
+        linkedSubscription.ends_at > currentTime;
+      if (active) {
+        await transaction.users.update({
+          where: { id: storedPayment.user_id },
+          data: {
+            role: 'paid_learner',
+            account_state: 'paid_active',
+            updated_at: currentTime,
+          },
+        });
+      }
       return {
         received: true,
         processed: true,
         duplicate: true,
-        activated: Boolean(subscription),
-        ...(subscription ? { endsAt: subscription.ends_at } : {}),
+        activated: active,
+        ...(active ? { endsAt: linkedSubscription.ends_at } : {}),
       };
     }
 
-    const plan = await transaction.plans.findUnique({
-      where: { id: payment.plan_id },
-      select: { id: true, duration_years: true, duration_months: true },
-    });
+    const plan = storedPayment.plan_id
+      ? await transaction.plans.findUnique({
+        where: { id: storedPayment.plan_id },
+        select: { id: true, duration_years: true, duration_months: true },
+      })
+      : null;
     const user = await transaction.users.findUnique({
-      where: { id: payment.user_id },
+      where: { id: storedPayment.user_id },
       select: { id: true, role: true, account_state: true, deleted_at: true },
     });
     if (!plan || !user || user.deleted_at ||
-        !['approved_trial_learner', 'paid_learner'].includes(user.role) ||
+        !['approved_trial_learner', 'paid_learner', 'expired_learner'].includes(user.role) ||
         ['suspended', 'rejected', 'deleted'].includes(user.account_state)) {
       return { received: true, processed: true, activated: false };
     }
+    if (!(
+      (Number.isInteger(plan.duration_years) && plan.duration_years > 0) ||
+      (Number.isInteger(plan.duration_months) && plan.duration_months > 0)
+    )) {
+      throw serviceError(500, 'The purchased plan has no valid subscription duration.');
+    }
 
-    const currentTime = now();
     const existingSubscription = await transaction.subscriptions.findFirst({
       where: {
         user_id: user.id,
         status: 'active',
+        starts_at: { lte: currentTime },
         ends_at: { gt: currentTime },
       },
       orderBy: { ends_at: 'desc' },
@@ -323,13 +407,13 @@ function createPaymentService({
       : currentTime;
     const endsAt = plan.duration_years
       ? addYears(startsAt, plan.duration_years)
-      : new Date(startsAt.getTime() + plan.duration_months * 30 * 24 * 60 * 60 * 1000);
+      : addMonths(startsAt, plan.duration_months);
 
     await transaction.subscriptions.create({
       data: {
         user_id: user.id,
         plan_id: plan.id,
-        payment_id: payment.id,
+        payment_id: storedPayment.id,
         starts_at: startsAt,
         ends_at: endsAt,
         status: 'active',
@@ -382,33 +466,18 @@ function createPaymentService({
     });
     if (!payment) throw serviceError(404, 'Payment order was not found for this account.');
 
-    if (payment.state === 'captured') {
-      const subscription = await database.subscriptions.findFirst({
-        where: { payment_id: payment.id, status: 'active' },
-        select: { id: true },
-      });
-      return {
-        verified: true,
-        activated: Boolean(subscription),
-        captured: true,
-        message: subscription
-          ? 'Payment was confirmed and access is active.'
-          : 'Payment is captured, but access could not be activated. Please contact support.',
-      };
-    }
-
     await database.payments.updateMany({
-        where: {
-          id: payment.id,
-          state: { in: ['created', 'authorized', 'failed'] },
-        },
-        data: {
-          state: 'authorized',
-          razorpay_payment_id: paymentId,
-          razorpay_signature: signature,
-          updated_at: now(),
-        },
-      });
+      where: {
+        id: payment.id,
+        state: { in: ['created', 'authorized', 'failed'] },
+      },
+      data: {
+        state: 'authorized',
+        razorpay_payment_id: paymentId,
+        razorpay_signature: signature,
+        updated_at: now(),
+      },
+    });
 
     let providerPayment;
     try {
@@ -423,8 +492,10 @@ function createPaymentService({
       return {
         verified: true,
         activated: false,
-        captured: false,
-        message: 'Payment signature verified. Access is awaiting Razorpay capture confirmation.',
+        captured: payment.state === 'captured',
+        message: payment.state === 'captured'
+          ? 'Payment is captured, but access could not be reconciled yet. Please try again shortly.'
+          : 'Payment signature verified. Access is awaiting Razorpay capture confirmation.',
       };
     }
 
@@ -432,8 +503,10 @@ function createPaymentService({
       return {
         verified: true,
         activated: false,
-        captured: false,
-        message: 'Payment signature verified. Access activates after Razorpay confirms capture.',
+        captured: payment.state === 'captured',
+        message: payment.state === 'captured'
+          ? 'Razorpay could not reconfirm this captured payment. Please contact support.'
+          : 'Payment signature verified. Access activates after Razorpay confirms capture.',
       };
     }
     if (providerPayment.id !== paymentId) {
@@ -447,6 +520,7 @@ function createPaymentService({
       verified: true,
       activated: activation.activated,
       captured: true,
+      ...(activation.duplicate ? { duplicate: true } : {}),
       message: activation.activated
         ? 'Payment was confirmed and access is active.'
         : 'Payment is captured, but access could not be activated. Please contact support.',
@@ -474,25 +548,11 @@ function createPaymentService({
     });
     if (!payment) throw serviceError(404, 'Payment order was not found for this account.');
 
-    if (payment.state === 'captured') {
-      const subscription = await database.subscriptions.findFirst({
-        where: { payment_id: payment.id, status: 'active' },
-        select: { id: true },
-      });
-      return {
-        verified: true,
-        activated: Boolean(subscription),
-        captured: true,
-        message: subscription
-          ? 'Payment was confirmed and access is active.'
-          : 'Payment is captured, but access could not be activated. Please contact support.',
-      };
-    }
-    if (payment.state !== 'authorized' || !payment.razorpay_payment_id) {
+    if (!['authorized', 'captured'].includes(payment.state) || !payment.razorpay_payment_id) {
       return {
         verified: false,
         activated: false,
-        captured: false,
+        captured: payment.state === 'captured',
         message: 'This payment is not ready to be checked yet.',
       };
     }
@@ -510,7 +570,7 @@ function createPaymentService({
       return {
         verified: false,
         activated: false,
-        captured: false,
+        captured: payment.state === 'captured',
         message: 'Could not confirm payment status with Razorpay. Please try again shortly.',
       };
     }
@@ -519,8 +579,10 @@ function createPaymentService({
       return {
         verified: true,
         activated: false,
-        captured: false,
-        message: 'Razorpay has not confirmed capture yet.',
+        captured: payment.state === 'captured',
+        message: payment.state === 'captured'
+          ? 'Razorpay could not reconfirm this captured payment. Please contact support.'
+          : 'Razorpay has not confirmed capture yet.',
       };
     }
     if (providerPayment.id !== payment.razorpay_payment_id) {
@@ -660,6 +722,144 @@ function createPaymentService({
     });
   }
 
+  // Resolves the learner's current access source, preferring a valid paid subscription.
+  async function getAccessInformation(userId) {
+    const currentTime = now();
+    const user = await database.users.findUnique({
+      where: { id: userId },
+      select: { account_state: true },
+    });
+    if (!user) throw serviceError(404, 'The account could not be found.');
+
+    const activeSubscription = await database.subscriptions.findFirst({
+      where: {
+        user_id: userId,
+        status: 'active',
+        starts_at: { lte: currentTime },
+        ends_at: { gt: currentTime },
+      },
+      orderBy: { ends_at: 'desc' },
+      select: {
+        status: true,
+        starts_at: true,
+        ends_at: true,
+        plans: { select: { code: true } },
+      },
+    });
+    if (activeSubscription) {
+      const planCode = activeSubscription.plans.code;
+      return {
+        accountStatus: 'paid_active',
+        accessType: 'paid',
+        planName: planCatalog[planCode]?.name || planCode,
+        subscriptionStatus: 'active',
+        subscriptionStartedAt: activeSubscription.starts_at,
+        subscriptionExpiresAt: activeSubscription.ends_at,
+        daysRemaining: daysRemaining(activeSubscription.ends_at, currentTime),
+        trial: null,
+      };
+    }
+
+    const previousSubscription = await database.subscriptions.findFirst({
+      where: {
+        user_id: userId,
+        OR: [
+          { status: 'expired' },
+          { status: 'active', ends_at: { lte: currentTime } },
+        ],
+      },
+      orderBy: [{ starts_at: 'desc' }, { created_at: 'desc' }],
+      select: {
+        status: true,
+        starts_at: true,
+        ends_at: true,
+        plans: { select: { code: true } },
+      },
+    });
+    if (previousSubscription &&
+        (previousSubscription.status === 'expired' || previousSubscription.ends_at <= currentTime)) {
+      const planCode = previousSubscription.plans.code;
+      return {
+        accountStatus: 'paid_expired',
+        accessType: 'expired',
+        planName: null,
+        previousPlanName: planCatalog[planCode]?.name || planCode,
+        subscriptionStatus: 'expired',
+        subscriptionStartedAt: previousSubscription.starts_at,
+        subscriptionExpiresAt: previousSubscription.ends_at,
+        daysRemaining: 0,
+        trial: null,
+      };
+    }
+
+    const activeTrial = await database.trials.findFirst({
+      where: {
+        user_id: userId,
+        state: 'active',
+        starts_at: { lte: currentTime },
+        ends_at: { gt: currentTime },
+      },
+      orderBy: { starts_at: 'desc' },
+      select: { starts_at: true, ends_at: true },
+    });
+    if (activeTrial) {
+      return {
+        accountStatus: 'trial_active',
+        accessType: 'trial',
+        planName: null,
+        subscriptionStatus: null,
+        subscriptionStartedAt: null,
+        subscriptionExpiresAt: null,
+        daysRemaining: daysRemaining(activeTrial.ends_at, currentTime),
+        trial: {
+          startedAt: activeTrial.starts_at,
+          expiresAt: activeTrial.ends_at,
+          daysRemaining: daysRemaining(activeTrial.ends_at, currentTime),
+        },
+      };
+    }
+
+    const previousTrial = await database.trials.findFirst({
+      where: {
+        user_id: userId,
+        OR: [
+          { state: 'expired' },
+          { state: 'active', ends_at: { lte: currentTime } },
+        ],
+      },
+      orderBy: [{ ends_at: 'desc' }, { created_at: 'desc' }],
+      select: { starts_at: true, ends_at: true },
+    });
+    if (previousTrial && previousTrial.ends_at <= currentTime) {
+      return {
+        accountStatus: 'trial_expired',
+        accessType: 'expired',
+        planName: null,
+        previousPlanName: null,
+        subscriptionStatus: null,
+        subscriptionStartedAt: null,
+        subscriptionExpiresAt: null,
+        daysRemaining: 0,
+        trial: {
+          startedAt: previousTrial.starts_at,
+          expiresAt: previousTrial.ends_at,
+          daysRemaining: 0,
+        },
+      };
+    }
+
+    return {
+      accountStatus: user.account_state,
+      accessType: user.account_state === 'pending_approval' ? 'pending' : 'none',
+      planName: null,
+      subscriptionStatus: null,
+      subscriptionStartedAt: null,
+      subscriptionExpiresAt: null,
+      daysRemaining: 0,
+      trial: null,
+    };
+  }
+
   return {
     getActivePlans,
     createOrder,
@@ -668,6 +868,7 @@ function createPaymentService({
     processWebhook,
     getPaymentHistory,
     getCurrentSubscription,
+    getAccessInformation,
   };
 }
 

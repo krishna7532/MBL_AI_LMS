@@ -4,7 +4,7 @@
  * Minimal, safe Markdown → HTML for revision notes (PRD §8.3: "sanitized Markdown").
  * Supports: ## / ### headings, paragraphs, - lists, tables, > blockquotes, **bold**, *italic*.
  * ALL input is HTML-escaped first, so no raw HTML/script can pass through.
- * Stage 2 note: replace with a vetted parser + allow-list sanitizer (e.g. marked + sanitize-html).
+ * For production hardening, replace with a vetted parser + allow-list sanitizer (e.g. marked + sanitize-html).
  */
 function escapeHtml(s) {
   return String(s)

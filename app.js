@@ -85,7 +85,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Baseline security headers. Full CSP / CSRF / rate limiting are Stage 2 work.
 // Adds baseline browser security headers to every response.
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
